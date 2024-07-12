@@ -54,5 +54,5 @@ func startLoadBalancer() {
 		log.Fatal(err)
 	}
 	output, _ := cmd.CombinedOutput()
-	log.Println(string(output))
+	log.Println("Started loadbalancer: ", string(output))
 }
