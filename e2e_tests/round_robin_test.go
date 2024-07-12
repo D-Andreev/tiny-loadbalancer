@@ -1,16 +1,12 @@
 package e2e_tests
 
 import (
-	"log"
 	"os/exec"
 	"strings"
 	"testing"
 )
 
 func TestRoundRobin(t *testing.T) {
-	startServers()
-	startLoadBalancer()
-
 	testCases := []struct {
 		expected string
 	}{
@@ -30,25 +26,4 @@ func TestRoundRobin(t *testing.T) {
 			t.Errorf("Expected %s, got %s", tc.expected, output)
 		}
 	}
-}
-
-func startServers() {
-	ports := []string{"8081", "8082", "8083"}
-	for _, p := range ports {
-		cmd := exec.Command("go", "run", "../servers/server.go", p)
-		err := cmd.Start()
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-}
-
-func startLoadBalancer() {
-	cmd := exec.Command("go", "run", "../main.go", "../config.json")
-	err := cmd.Start()
-	if err != nil {
-		log.Fatal(err)
-	}
-	output, _ := cmd.CombinedOutput()
-	log.Println(string(output))
 }
