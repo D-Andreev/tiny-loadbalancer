@@ -55,11 +55,18 @@ func startLoadBalancer() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	cmd = exec.Command("go", "run", "../main.go", "../config.json")
+	cmd = exec.Command("pwd")
 	err = cmd.Start()
 	if err != nil {
 		log.Fatal(err)
 	}
 	output, _ := cmd.CombinedOutput()
+	log.Println("PWD", string(output))
+	cmd = exec.Command("go", "run", "../main.go", "../config.json")
+	err = cmd.Start()
+	if err != nil {
+		log.Fatal(err)
+	}
+	output, _ = cmd.CombinedOutput()
 	log.Println(string(output))
 }
