@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Create a log directory if it doesn't exist
+[ ! -d log ] &&
+    mkdir log
+
 # Kill processes running on specified ports if they exist
 for port in 3333 8081 8082 8083; do
   pid=$(lsof -t -i:$port)

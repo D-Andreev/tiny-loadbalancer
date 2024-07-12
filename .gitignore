@@ -14,4 +14,4 @@ main
 nohup.out
 
 # logs
-./log
+log/*

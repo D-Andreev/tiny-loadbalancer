@@ -13,9 +13,10 @@ run:
 # Test the application
 test:
 	@echo "Testing..."
-	@sh before_tests.sh
+	@sh scripts/before_tests.sh
 	@sleep 1
 	@go test ./... -v
+	@sh scripts/after_tests.sh
 
 # Test coverage report
 coverage:
