@@ -1,5 +1,3 @@
-include .env
-
 # Build the application
 all: build
 
