@@ -48,11 +48,18 @@ func startServers() {
 
 func startLoadBalancer() {
 	cmd := exec.Command("kill $(lsof -t -i:3333)")
-	cmd = exec.Command("go", "run", "../main.go", "../config.json")
+	cmd = exec.Command("ls")
 	err := cmd.Start()
 	if err != nil {
 		log.Fatal(err)
 	}
 	output, _ := cmd.CombinedOutput()
+	log.Println("LS: ", string(output))
+	cmd = exec.Command("go", "run", "../main.go", "../config.json")
+	err = cmd.Start()
+	if err != nil {
+		log.Fatal(err)
+	}
+	output, _ = cmd.CombinedOutput()
 	log.Println("Started loadbalancer: ", string(output))
 }
