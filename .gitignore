@@ -12,3 +12,6 @@ main
 
 # nohup
 nohup.out
+
+# logs
+./log
