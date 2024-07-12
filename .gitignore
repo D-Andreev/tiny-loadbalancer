@@ -1,0 +1,17 @@
+# TODO
+TODO.md
+
+# Env
+.env
+
+# Binary
+main
+
+# tmp
+./tmp
+
+# nohup
+nohup.out
+
+# logs
+log/*
