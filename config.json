@@ -1,6 +1,7 @@
 {
   "port": "3333",
   "strategy": "round-robin",
+  "healthCheckInterval": "5s",
   "serverUrls": [
     "http://localhost:8081",
     "http://localhost:8082",

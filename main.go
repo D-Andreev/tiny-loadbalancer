@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/tiny-loadbalancer/internal/config"
 	lb "github.com/tiny-loadbalancer/internal/load_balancer"
@@ -20,7 +21,27 @@ func main() {
 	configPath := args[0]
 	config, err := config.ReadConfig(configPath)
 
-	servers := initServers(config)
+	healthCheckInterval, err := time.ParseDuration(config.HealthCheckInterval)
+	if err != nil {
+		log.Fatalf("Invalid health check interval: %s", err.Error())
+	}
+
+	servers := getServers(config)
+	for _, s := range servers {
+		go func(ss *server.Server) {
+			for range time.Tick(healthCheckInterval) {
+				res, err := http.Get(ss.URL.String())
+				if err != nil || res.StatusCode >= 500 {
+					fmt.Printf("Server %s is not healthy\n", ss.URL.String())
+					ss.Healthy = false
+				} else {
+					defer res.Body.Close()
+					ss.Healthy = true
+				}
+			}
+		}(s)
+	}
+
 	tlb := &lb.TinyLoadBalancer{
 		Port:     config.Port,
 		Servers:  servers,
@@ -35,7 +56,7 @@ func main() {
 	}
 }
 
-func initServers(config *config.Config) []*server.Server {
+func getServers(config *config.Config) []*server.Server {
 	var servers []*server.Server
 	for _, serverUrl := range config.ServerUrls {
 		parsedUrl, err := url.Parse(serverUrl)
@@ -43,7 +64,8 @@ func initServers(config *config.Config) []*server.Server {
 			panic(err)
 		}
 		s := &server.Server{
-			URL: parsedUrl,
+			URL:     parsedUrl,
+			Healthy: true,
 		}
 		servers = append(servers, s)
 	}
