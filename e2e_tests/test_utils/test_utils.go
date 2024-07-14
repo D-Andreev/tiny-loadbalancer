@@ -97,7 +97,7 @@ func SetupSuite(_ *testing.T, ports []string) ([]*exec.Cmd, *exec.Cmd, int, func
 	}
 	loadBalancerProcess = StartLoadBalancer(port, ports)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	return slaveProcesses, loadBalancerProcess, port, func(t *testing.T) {
 		StopServers(slaveProcesses)

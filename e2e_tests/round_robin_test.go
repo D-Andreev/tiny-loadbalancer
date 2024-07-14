@@ -110,7 +110,7 @@ func TestServerComesBackOnline(t *testing.T) {
 	if err := syscall.Kill(-slaveProcesses[0].Process.Pid, syscall.SIGKILL); err != nil {
 		t.Errorf("Error releasing process: %s", err.Error())
 	}
-	time.Sleep(time.Second * 2)
+	time.Sleep(time.Second * 1)
 
 	testCases := []struct {
 		expected string
@@ -127,7 +127,7 @@ func TestServerComesBackOnline(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		log.Fatalf("Failed to start server on port %s: %v", ports[0], err)
 	}
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 1)
 	fmt.Println("Ports:", ports)
 	testCases = []struct {
 		expected string
