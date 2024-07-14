@@ -1,14 +1,11 @@
 package e2e_tests
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os/exec"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -96,7 +93,6 @@ func TestWithNoHealthyServers(t *testing.T) {
 }
 
 func TestServerComesBackOnline(t *testing.T) {
-	t.Skip()
 	ports := []string{}
 	for i := 0; i < 3; i++ {
 		port, err := testUtils.GetFreePort()
@@ -107,10 +103,9 @@ func TestServerComesBackOnline(t *testing.T) {
 	}
 	slaveProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports)
 	defer teardownSuite(t)
-	if err := syscall.Kill(-slaveProcesses[0].Process.Pid, syscall.SIGKILL); err != nil {
-		t.Errorf("Error releasing process: %s", err.Error())
-	}
-	time.Sleep(time.Second * 1)
+
+	testUtils.StopServer(slaveProcesses[0])
+	time.Sleep(time.Second * 2)
 
 	testCases := []struct {
 		expected string
@@ -123,12 +118,11 @@ func TestServerComesBackOnline(t *testing.T) {
 
 	assertResponse(t, testCases, port)
 
-	cmd := exec.Command("go", "run", "servers/server.go", ports[0])
-	if err := cmd.Start(); err != nil {
-		log.Fatalf("Failed to start server on port %s: %v", ports[0], err)
-	}
-	time.Sleep(time.Second * 1)
-	fmt.Println("Ports:", ports)
+	cmd := testUtils.StartServer(ports[0])
+	slaveProcesses[0] = cmd
+	defer testUtils.StopServer(slaveProcesses[0])
+	time.Sleep(time.Second * 2)
+
 	testCases = []struct {
 		expected string
 	}{
@@ -142,5 +136,4 @@ func TestServerComesBackOnline(t *testing.T) {
 	}
 
 	assertResponse(t, testCases, port)
-
 }
