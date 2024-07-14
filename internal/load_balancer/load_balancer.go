@@ -42,15 +42,16 @@ func (tlb *TinyLoadBalancer) RoundRobinHandler(w http.ResponseWriter, r *http.Re
 		}
 
 		proxy := server.GetReverseProxy()
+		// If we don't want to retry requests, just serve the request
 		if !tlb.RetryRequests {
 			proxy.ServeHTTP(w, r)
 			return
 		}
 
-		// Retry request if server returns status code >= 500
 		rec := httptest.NewRecorder()
 		proxy.ServeHTTP(rec, r)
 
+		// If the server is healthy, return the response, otherwise try the next server
 		if rec.Code < http.StatusInternalServerError {
 			for k, v := range rec.Header() {
 				w.Header()[k] = v
