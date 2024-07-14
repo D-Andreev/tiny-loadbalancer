@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -24,18 +25,30 @@ type TinyLoadBalancer struct {
 func (tlb *TinyLoadBalancer) GetRequestHandler() http.HandlerFunc {
 	switch tlb.Strategy {
 	case constants.RoundRobin:
-		return tlb.RoundRobinHandler
+		return func(w http.ResponseWriter, r *http.Request) {
+			tlb.RequestHandler(w, r, tlb.GetNextServerRoundRobin)
+		}
+	case constants.Random:
+		return func(w http.ResponseWriter, r *http.Request) {
+			tlb.RequestHandler(w, r, tlb.GetNextServerRandom)
+		}
 
 	default:
-		return tlb.RoundRobinHandler
+		return func(w http.ResponseWriter, r *http.Request) {
+			tlb.RequestHandler(w, r, tlb.GetNextServerRoundRobin)
+		}
 	}
 }
 
-func (tlb *TinyLoadBalancer) RoundRobinHandler(w http.ResponseWriter, r *http.Request) {
+func (tlb *TinyLoadBalancer) RequestHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+	getNextServer func() (*server.Server, error),
+) {
 	var err error
 	for i := 0; i < len(tlb.Servers); i++ {
 		var server *server.Server
-		server, err = tlb.GetNextServerRoundRobin()
+		server, err = getNextServer()
 		if err != nil {
 			http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
 			return
@@ -100,4 +113,24 @@ func (tlb *TinyLoadBalancer) IncrementNextServer() {
 	if tlb.NextServer >= len(tlb.Servers) {
 		tlb.NextServer = 0
 	}
+}
+
+func (tlb *TinyLoadBalancer) GetNextServerRandom() (*server.Server, error) {
+	healthyServers := make([]*server.Server, 0)
+	for _, s := range tlb.Servers {
+		s.Mut.Lock()
+		if s.Healthy {
+			healthyServers = append(healthyServers, s)
+		}
+		s.Mut.Unlock()
+	}
+
+	if len(healthyServers) == 0 {
+		return nil, errors.New("No healthy servers")
+	}
+
+	max := len(healthyServers)
+	idx := rand.Intn(max-0) + 0
+
+	return healthyServers[idx], nil
 }

@@ -13,7 +13,7 @@ run:
 # Test the application
 test:
 	@echo "Testing..."
-	@go test ./... -v
+	@go test ./... -v -count=1
 
 # Test coverage report
 coverage:

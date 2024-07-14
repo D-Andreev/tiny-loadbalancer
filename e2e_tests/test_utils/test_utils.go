@@ -19,7 +19,8 @@ import (
 )
 
 type TestCase struct {
-	Expected string
+	ExpectedBody       string
+	ExpectedStatusCode int
 }
 
 func GetFreePort() (port int, err error) {
@@ -145,8 +146,8 @@ func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
 			t.Errorf("Error reading response body: %s", err.Error())
 		}
 		defer res.Body.Close()
-		if !strings.Contains(string(resBody), tc.Expected) {
-			t.Errorf("Expected %s, got %s", tc.Expected, resBody)
+		if !strings.Contains(string(resBody), tc.ExpectedBody) {
+			t.Errorf("Expected %s, got %s", tc.ExpectedBody, resBody)
 		}
 	}
 }
@@ -156,5 +157,18 @@ func GetConfig(port int) config.Config {
 		Port:                port,
 		Strategy:            "round-robin",
 		HealthCheckInterval: "1s",
+	}
+}
+
+func AssertLoadBalancerStatusCode(t *testing.T, testCases []TestCase, port int) {
+	t.Helper()
+	for _, tc := range testCases {
+		res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+		if err != nil {
+			t.Errorf("Error making request: %s", err.Error())
+		}
+		if res.StatusCode != tc.ExpectedStatusCode {
+			t.Errorf("Expected %d, got %d", tc.ExpectedStatusCode, res.StatusCode)
+		}
 	}
 }
