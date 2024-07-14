@@ -2,7 +2,10 @@ package loadbalancer
 
 import (
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 
 	"github.com/tiny-loadbalancer/internal/constants"
@@ -10,27 +13,60 @@ import (
 )
 
 type TinyLoadBalancer struct {
-	Servers    []*server.Server
-	Port       string
-	Mut        sync.Mutex
-	NextServer int
-	Strategy   constants.Strategy
+	Servers       []*server.Server
+	Port          int
+	Mut           sync.Mutex
+	NextServer    int
+	Strategy      constants.Strategy
+	RetryRequests bool
 }
 
-func (tlb *TinyLoadBalancer) HandleRequest(w http.ResponseWriter, r *http.Request) {
-	var server *server.Server
-	var err error
+func (tlb *TinyLoadBalancer) GetRequestHandler() http.HandlerFunc {
 	switch tlb.Strategy {
 	case constants.RoundRobin:
-		server, err = tlb.GetNextServerRoundRobin()
+		return tlb.RoundRobinHandler
+
 	default:
+		return tlb.RoundRobinHandler
+	}
+}
+
+func (tlb *TinyLoadBalancer) RoundRobinHandler(w http.ResponseWriter, r *http.Request) {
+	var err error
+	for i := 0; i < len(tlb.Servers); i++ {
+		var server *server.Server
 		server, err = tlb.GetNextServerRoundRobin()
+		if err != nil {
+			http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
+			return
+		}
+
+		proxy := server.GetReverseProxy()
+		if !tlb.RetryRequests {
+			proxy.ServeHTTP(w, r)
+			return
+		}
+
+		// Retry request if server returns status code >= 500
+		rec := httptest.NewRecorder()
+		proxy.ServeHTTP(rec, r)
+
+		if rec.Code < http.StatusInternalServerError {
+			for k, v := range rec.Header() {
+				w.Header()[k] = v
+			}
+			w.WriteHeader(rec.Code)
+			io.Copy(w, rec.Body)
+			return
+		}
+
+		fmt.Printf("Server %s returned status %d. Retrying with next server.\n", server.URL.String(), rec.Code)
+		server.Mut.Lock()
+		server.Healthy = false
+		server.Mut.Unlock()
 	}
-	if err != nil {
-		http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
-		return
-	}
-	server.Proxy().ServeHTTP(w, r)
+
+	http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
 }
 
 func (tlb *TinyLoadBalancer) GetNextServerRoundRobin() (*server.Server, error) {

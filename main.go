@@ -32,7 +32,7 @@ func main() {
 			for range time.Tick(healthCheckInterval) {
 				healthEndpointUrl := fmt.Sprintf("%s/health", ss.URL.String())
 				res, err := http.Get(healthEndpointUrl)
-				if err != nil || res.StatusCode >= 500 {
+				if err != nil || res.StatusCode >= http.StatusInternalServerError {
 					fmt.Printf("Server %s is not healthy\n", healthEndpointUrl)
 					ss.Healthy = false
 				} else {
@@ -44,14 +44,15 @@ func main() {
 	}
 
 	tlb := &lb.TinyLoadBalancer{
-		Port:     config.Port,
-		Servers:  servers,
-		Strategy: config.Strategy,
+		Port:          config.Port,
+		Servers:       servers,
+		Strategy:      config.Strategy,
+		RetryRequests: config.RetryRequests,
 	}
 
-	http.HandleFunc("/", tlb.HandleRequest)
+	http.HandleFunc("/", tlb.GetRequestHandler())
 	log.Println("Starting server on port", tlb.Port)
-	err = http.ListenAndServe(fmt.Sprintf(":%s", tlb.Port), nil)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", tlb.Port), nil)
 	if err != nil {
 		panic(err)
 	}

@@ -8,10 +8,11 @@ import (
 )
 
 type Config struct {
-	Port                string             `json:"port"`
+	Port                int                `json:"port"`
 	ServerUrls          []string           `json:"serverUrls"`
 	Strategy            constants.Strategy `json:"strategy"`
 	HealthCheckInterval string             `json:"healthCheckInterval"`
+	RetryRequests       bool               `json:"retryRequests"`
 }
 
 func ReadConfig(path string) (*Config, error) {

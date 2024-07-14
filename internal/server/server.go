@@ -12,6 +12,6 @@ type Server struct {
 	Mut     sync.Mutex
 }
 
-func (s *Server) Proxy() *httputil.ReverseProxy {
+func (s *Server) GetReverseProxy() *httputil.ReverseProxy {
 	return httputil.NewSingleHostReverseProxy(s.URL)
 }

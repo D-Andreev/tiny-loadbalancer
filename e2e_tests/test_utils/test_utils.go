@@ -48,12 +48,7 @@ func WriteConfigFile(config config.Config, ports []string) {
 	}
 }
 
-func StartLoadBalancer(port int, ports []string) *exec.Cmd {
-	config := config.Config{
-		Port:                strconv.Itoa(port),
-		Strategy:            "round-robin",
-		HealthCheckInterval: "1s",
-	}
+func StartLoadBalancer(port int, ports []string, config config.Config) *exec.Cmd {
 	WriteConfigFile(config, ports)
 
 	cmd := exec.Command("go", "run", "../main.go", "../config-test.json")
@@ -110,19 +105,15 @@ func StopServers(slaveProcesses []*exec.Cmd) {
 	}
 }
 
-func SetupSuite(_ *testing.T, ports []string) ([]*exec.Cmd, *exec.Cmd, int, func(t *testing.T)) {
+func SetupSuite(_ *testing.T, ports []string, config config.Config) ([]*exec.Cmd, *exec.Cmd, int, func(t *testing.T)) {
 	var slaveProcesses []*exec.Cmd
 	var loadBalancerProcess *exec.Cmd
 	slaveProcesses = StartServers(slaveProcesses, ports)
-	port, err := GetFreePort()
-	if err != nil {
-		log.Fatalf("Failed to get free port: %v", err)
-	}
-	loadBalancerProcess = StartLoadBalancer(port, ports)
+	loadBalancerProcess = StartLoadBalancer(config.Port, ports, config)
 
 	time.Sleep(2 * time.Second)
 
-	return slaveProcesses, loadBalancerProcess, port, func(t *testing.T) {
+	return slaveProcesses, loadBalancerProcess, config.Port, func(t *testing.T) {
 		StopServers(slaveProcesses)
 		StopLoadBalancer(loadBalancerProcess)
 	}
@@ -157,5 +148,13 @@ func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
 		if !strings.Contains(string(resBody), tc.Expected) {
 			t.Errorf("Expected %s, got %s", tc.Expected, resBody)
 		}
+	}
+}
+
+func GetConfig(port int) config.Config {
+	return config.Config{
+		Port:                port,
+		Strategy:            "round-robin",
+		HealthCheckInterval: "1s",
 	}
 }
