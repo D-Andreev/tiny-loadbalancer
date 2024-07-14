@@ -20,11 +20,13 @@ func TestRandom(t *testing.T) {
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
 	defer teardownSuite(t)
 
-	testCases := []testUtils.TestCase{
-		{ExpectedStatusCode: 200},
-		{ExpectedStatusCode: 200},
-		{ExpectedStatusCode: 200},
-		{ExpectedStatusCode: 200},
+	testCases := make([]testUtils.TestCase, 0)
+	/*
+		Next servers are chosen randomly, so we need to test it multiple times
+		to make sure that all servers are chosen at least once
+	*/
+	for i := 0; i < 100; i++ {
+		testCases = append(testCases, testUtils.TestCase{ExpectedStatusCode: 200})
 	}
 
 	testUtils.AssertLoadBalancerStatusCode(t, testCases, port)
@@ -65,7 +67,6 @@ func TestRandomServerDiesAndComesBackOnline(t *testing.T) {
 		{ExpectedBody: "Hello from server " + ports[1]},
 		{ExpectedBody: "Hello from server " + ports[1]},
 	}
-
 	testUtils.AssertLoadBalancerResponse(t, testCases, port)
 
 	testUtils.StopServer(serverProcesses[1])
