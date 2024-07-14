@@ -2,11 +2,13 @@ package test_utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/exec"
 	"strconv"
+	"syscall"
 	"testing"
 	"time"
 
@@ -29,7 +31,7 @@ func StartLoadBalancer(port int, ports []string) *exec.Cmd {
 	config := config.Config{
 		Port:                strconv.Itoa(port),
 		Strategy:            "round-robin",
-		HealthCheckInterval: "5s",
+		HealthCheckInterval: "1s",
 	}
 	for _, p := range ports {
 		config.ServerUrls = append(config.ServerUrls, "http://localhost:"+p)
@@ -43,61 +45,62 @@ func StartLoadBalancer(port int, ports []string) *exec.Cmd {
 		log.Fatal(err)
 	}
 	cmd := exec.Command("go", "run", "../main.go", "../config-test.json")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		log.Fatalf("Failed to start load balancer: %v", err)
 	}
+	fmt.Printf("Started load balancer on port %d, with PID: %d\n", port, cmd.Process.Pid)
 	return cmd
 }
 
 func StopLoadBalancer(loadBalancerProcess *exec.Cmd) {
-	if err := loadBalancerProcess.Process.Release(); err != nil {
+	if err := syscall.Kill(-loadBalancerProcess.Process.Pid, syscall.SIGKILL); err != nil {
 		log.Printf("Failed to kill load balancer process: %v", err)
 	}
+	fmt.Printf("Stopped load balancer with PID: %d\n", loadBalancerProcess.Process.Pid)
 	e := os.Remove("../config-test.json")
 	if e != nil {
 		log.Fatal(e)
 	}
 }
 
-func StartSlave(port string) *exec.Cmd {
-	cmd := exec.Command("go", "run", "servers/server.go", port)
-	if err := cmd.Start(); err != nil {
-		log.Fatalf("Failed to start slave on port %s: %v", port, err)
-	}
-	return cmd
-}
-
-func StartSlaves(slaveProcesses []*exec.Cmd, ports []string) []*exec.Cmd {
+func StartServers(slaveProcesses []*exec.Cmd, ports []string) []*exec.Cmd {
 	for _, port := range ports {
-		cmd := StartSlave(port)
+		cmd := exec.Command("go", "run", "servers/server.go", port)
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		if err := cmd.Start(); err != nil {
+			log.Fatalf("Failed to start server on port %s: %v", port, err)
+		}
+		fmt.Printf("Started server on port: %s, with PID: %d\n", port, cmd.Process.Pid)
 		slaveProcesses = append(slaveProcesses, cmd)
 	}
 
 	return slaveProcesses
 }
 
-func StopSlaves(slaveProcesses []*exec.Cmd) {
+func StopServers(slaveProcesses []*exec.Cmd) {
 	for _, cmd := range slaveProcesses {
-		if err := cmd.Process.Release(); err != nil {
-			log.Printf("Failed to kill slave process: %v", err)
+		if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
+			log.Printf("Failed to kill server process: %v", err)
 		}
+		fmt.Printf("Stopped server with PID: %d\n", cmd.Process.Pid)
 	}
 }
 
-func SetupSuite(_ *testing.T, ports []string) (int, func(t *testing.T)) {
+func SetupSuite(_ *testing.T, ports []string) ([]*exec.Cmd, *exec.Cmd, int, func(t *testing.T)) {
 	var slaveProcesses []*exec.Cmd
 	var loadBalancerProcess *exec.Cmd
-	slaveProcesses = StartSlaves(slaveProcesses, ports)
+	slaveProcesses = StartServers(slaveProcesses, ports)
 	port, err := GetFreePort()
 	if err != nil {
 		log.Fatalf("Failed to get free port: %v", err)
 	}
 	loadBalancerProcess = StartLoadBalancer(port, ports)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(2 * time.Second)
 
-	return port, func(t *testing.T) {
-		StopSlaves(slaveProcesses)
+	return slaveProcesses, loadBalancerProcess, port, func(t *testing.T) {
+		StopServers(slaveProcesses)
 		StopLoadBalancer(loadBalancerProcess)
 	}
 }

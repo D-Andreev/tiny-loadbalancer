@@ -30,9 +30,10 @@ func main() {
 	for _, s := range servers {
 		go func(ss *server.Server) {
 			for range time.Tick(healthCheckInterval) {
-				res, err := http.Get(ss.URL.String())
+				healthEndpointUrl := fmt.Sprintf("%s/health", ss.URL.String())
+				res, err := http.Get(healthEndpointUrl)
 				if err != nil || res.StatusCode >= 500 {
-					fmt.Printf("Server %s is not healthy\n", ss.URL.String())
+					fmt.Printf("Server %s is not healthy\n", healthEndpointUrl)
 					ss.Healthy = false
 				} else {
 					defer res.Body.Close()

@@ -42,10 +42,7 @@ func (tlb *TinyLoadBalancer) GetNextServerRoundRobin() (*server.Server, error) {
 	defer server.Mut.Unlock()
 	if !server.Healthy {
 		for i := 0; i < len(tlb.Servers); i++ {
-			tlb.NextServer++
-			if tlb.NextServer >= len(tlb.Servers) {
-				tlb.NextServer = 0
-			}
+			tlb.IncrementNextServer()
 			server = tlb.Servers[tlb.NextServer]
 			if server.Healthy {
 				break
@@ -56,10 +53,14 @@ func (tlb *TinyLoadBalancer) GetNextServerRoundRobin() (*server.Server, error) {
 	if !server.Healthy {
 		return nil, errors.New("No healthy servers")
 	}
+	tlb.IncrementNextServer()
 
+	return server, nil
+}
+
+func (tlb *TinyLoadBalancer) IncrementNextServer() {
 	tlb.NextServer++
 	if tlb.NextServer >= len(tlb.Servers) {
 		tlb.NextServer = 0
 	}
-	return server, nil
 }
