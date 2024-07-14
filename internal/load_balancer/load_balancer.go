@@ -130,7 +130,7 @@ func (tlb *TinyLoadBalancer) GetNextServerRandom() (*server.Server, error) {
 	}
 
 	max := len(healthyServers)
-	idx := rand.Intn(max-0) + 0
+	idx := rand.Intn(max)
 
 	return healthyServers[idx], nil
 }
