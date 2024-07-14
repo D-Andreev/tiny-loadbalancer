@@ -3,17 +3,24 @@ package test_utils
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/tiny-loadbalancer/internal/config"
 )
+
+type TestCase struct {
+	Expected string
+}
 
 func GetFreePort() (port int, err error) {
 	var a *net.TCPAddr
@@ -27,12 +34,7 @@ func GetFreePort() (port int, err error) {
 	return
 }
 
-func StartLoadBalancer(port int, ports []string) *exec.Cmd {
-	config := config.Config{
-		Port:                strconv.Itoa(port),
-		Strategy:            "round-robin",
-		HealthCheckInterval: "1s",
-	}
+func WriteConfigFile(config config.Config, ports []string) {
 	for _, p := range ports {
 		config.ServerUrls = append(config.ServerUrls, "http://localhost:"+p)
 	}
@@ -44,12 +46,23 @@ func StartLoadBalancer(port int, ports []string) *exec.Cmd {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func StartLoadBalancer(port int, ports []string) *exec.Cmd {
+	config := config.Config{
+		Port:                strconv.Itoa(port),
+		Strategy:            "round-robin",
+		HealthCheckInterval: "1s",
+	}
+	WriteConfigFile(config, ports)
+
 	cmd := exec.Command("go", "run", "../main.go", "../config-test.json")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		log.Fatalf("Failed to start load balancer: %v", err)
 	}
 	fmt.Printf("Started load balancer on port %d, with PID: %d\n", port, cmd.Process.Pid)
+
 	return cmd
 }
 
@@ -112,5 +125,37 @@ func SetupSuite(_ *testing.T, ports []string) ([]*exec.Cmd, *exec.Cmd, int, func
 	return slaveProcesses, loadBalancerProcess, port, func(t *testing.T) {
 		StopServers(slaveProcesses)
 		StopLoadBalancer(loadBalancerProcess)
+	}
+}
+
+func GetFreePorts(t *testing.T, n int) []string {
+	t.Helper()
+	ports := []string{}
+	for i := 0; i < n; i++ {
+		port, err := GetFreePort()
+		if err != nil {
+			t.Errorf(err.Error())
+		}
+		ports = append(ports, strconv.Itoa(port))
+	}
+
+	return ports
+}
+
+func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
+	t.Helper()
+	for _, tc := range testCases {
+		res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+		if err != nil {
+			t.Errorf("Error making request: %s", err.Error())
+		}
+		resBody, err := io.ReadAll(res.Body)
+		if err != nil {
+			t.Errorf("Error reading response body: %s", err.Error())
+		}
+		defer res.Body.Close()
+		if !strings.Contains(string(resBody), tc.Expected) {
+			t.Errorf("Expected %s, got %s", tc.Expected, resBody)
+		}
 	}
 }
