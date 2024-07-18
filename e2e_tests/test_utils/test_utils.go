@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/tiny-loadbalancer/internal/config"
+	"github.com/tiny-loadbalancer/internal/constants"
 )
 
 type TestCase struct {
@@ -35,11 +36,12 @@ func GetFreePort() (port int, err error) {
 	return
 }
 
-func WriteConfigFile(config config.Config, ports []string) {
+func WriteConfigFile(c config.Config, ports []string) {
 	for _, p := range ports {
-		config.ServerUrls = append(config.ServerUrls, "http://localhost:"+p)
+		s := config.Server{Url: "http://localhost:" + p}
+		c.Servers = append(c.Servers, s)
 	}
-	content, err := json.Marshal(config)
+	content, err := json.Marshal(c)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -152,10 +154,10 @@ func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
 	}
 }
 
-func GetConfig(port int) config.Config {
+func GetConfig(port int, strategy constants.Strategy) config.Config {
 	return config.Config{
 		Port:                port,
-		Strategy:            "round-robin",
+		Strategy:            strategy,
 		HealthCheckInterval: "1s",
 	}
 }

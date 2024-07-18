@@ -7,6 +7,7 @@ import (
 	"time"
 
 	testUtils "github.com/tiny-loadbalancer/e2e_tests/test_utils"
+	"github.com/tiny-loadbalancer/internal/constants"
 )
 
 func TestRoundRobin(t *testing.T) {
@@ -15,7 +16,7 @@ func TestRoundRobin(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
+	config := testUtils.GetConfig(port, constants.RoundRobin)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
 	defer teardownSuite(t)
 
@@ -37,7 +38,7 @@ func TestRoundRobinNoServersAreStarted(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
+	config := testUtils.GetConfig(port, constants.RoundRobin)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config)
 	defer teardownSuite(t)
 
@@ -53,7 +54,7 @@ func TestRoundRobinServerDiesAndComesBackOnline(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
+	config := testUtils.GetConfig(port, constants.RoundRobin)
 	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
 	defer teardownSuite(t)
 
@@ -93,7 +94,7 @@ func TestRoundRobinRetryRequestTurnedOff(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
+	config := testUtils.GetConfig(port, constants.RoundRobin)
 	config.HealthCheckInterval = "30s"
 	config.RetryRequests = false
 
@@ -114,7 +115,7 @@ func TestRoundRobinRetryRequestTurnedOn(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
+	config := testUtils.GetConfig(port, constants.RoundRobin)
 	config.HealthCheckInterval = "30s"
 	config.RetryRequests = true
 
