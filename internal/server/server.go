@@ -7,9 +7,20 @@ import (
 )
 
 type Server struct {
-	URL     *url.URL
-	Healthy bool
-	Mut     sync.Mutex
+	URL           *url.URL
+	Healthy       bool
+	Mut           sync.Mutex
+	Weight        int
+	CurrentWeight int
+}
+
+func NewServer(url *url.URL, weight int) *Server {
+	return &Server{
+		URL:           url,
+		Healthy:       true,
+		Weight:        weight,
+		CurrentWeight: weight,
+	}
 }
 
 func (s *Server) GetReverseProxy() *httputil.ReverseProxy {

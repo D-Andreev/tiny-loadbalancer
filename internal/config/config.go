@@ -7,9 +7,14 @@ import (
 	"github.com/tiny-loadbalancer/internal/constants"
 )
 
+type Server struct {
+	Url    string `json:"url"`
+	Weight int    `json:"weight"`
+}
+
 type Config struct {
 	Port                int                `json:"port"`
-	ServerUrls          []string           `json:"serverUrls"`
+	Servers             []Server           `json:"servers"`
 	Strategy            constants.Strategy `json:"strategy"`
 	HealthCheckInterval string             `json:"healthCheckInterval"`
 	RetryRequests       bool               `json:"retryRequests"`

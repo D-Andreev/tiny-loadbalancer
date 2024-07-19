@@ -1,11 +1,20 @@
 {
   "port": 3333,
-  "strategy": "random",
+  "strategy": "weighted-round-robin",
   "healthCheckInterval": "30s",
   "retryRequests": true,
-  "serverUrls": [
-    "http://localhost:8081",
-    "http://localhost:8082",
-    "http://localhost:8083"
+  "servers": [
+    {
+      "url": "http://localhost:8081",
+      "weight": 5
+    },
+    {
+      "url": "http://localhost:8082",
+      "weight": 3
+    },
+    {
+      "url": "http://localhost:8083",
+      "weight": 2
+    }
   ]
 }

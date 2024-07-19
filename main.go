@@ -27,27 +27,32 @@ func main() {
 	}
 
 	servers := getServers(config)
-	for _, s := range servers {
-		go func(ss *server.Server) {
-			for range time.Tick(healthCheckInterval) {
-				healthEndpointUrl := fmt.Sprintf("%s/health", ss.URL.String())
-				res, err := http.Get(healthEndpointUrl)
-				if err != nil || res.StatusCode >= http.StatusInternalServerError {
-					fmt.Printf("Server %s is not healthy\n", healthEndpointUrl)
-					ss.Healthy = false
-				} else {
-					defer res.Body.Close()
-					ss.Healthy = true
-				}
-			}
-		}(s)
-	}
-
 	tlb := &lb.TinyLoadBalancer{
 		Port:          config.Port,
 		Servers:       servers,
 		Strategy:      config.Strategy,
 		RetryRequests: config.RetryRequests,
+	}
+
+	// Run health checks for servers in interval
+	for _, s := range tlb.Servers {
+		go func(server *server.Server) {
+			for range time.Tick(healthCheckInterval) {
+				healthEndpointUrl := fmt.Sprintf("%s/health", server.URL.String())
+				res, err := http.Get(healthEndpointUrl)
+				if err != nil || res.StatusCode >= http.StatusInternalServerError {
+					fmt.Printf("Server %s is not healthy\n", healthEndpointUrl)
+					server.Mut.Lock()
+					server.Healthy = false
+					server.Mut.Unlock()
+				} else {
+					defer res.Body.Close()
+					server.Mut.Lock()
+					server.Healthy = true
+					server.Mut.Unlock()
+				}
+			}
+		}(s)
 	}
 
 	http.HandleFunc("/", tlb.GetRequestHandler())
@@ -60,15 +65,12 @@ func main() {
 
 func getServers(config *config.Config) []*server.Server {
 	var servers []*server.Server
-	for _, serverUrl := range config.ServerUrls {
-		parsedUrl, err := url.Parse(serverUrl)
+	for _, s := range config.Servers {
+		parsedUrl, err := url.Parse(s.Url)
 		if err != nil {
 			panic(err)
 		}
-		s := &server.Server{
-			URL:     parsedUrl,
-			Healthy: true,
-		}
+		s := server.NewServer(parsedUrl, s.Weight)
 		servers = append(servers, s)
 	}
 

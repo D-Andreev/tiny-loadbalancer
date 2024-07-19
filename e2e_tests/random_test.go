@@ -7,6 +7,7 @@ import (
 	"time"
 
 	testUtils "github.com/tiny-loadbalancer/e2e_tests/test_utils"
+	"github.com/tiny-loadbalancer/internal/constants"
 )
 
 func TestRandom(t *testing.T) {
@@ -15,9 +16,8 @@ func TestRandom(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
-	config.Strategy = "random"
-	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
+	config := testUtils.GetConfig(port, constants.Random)
+	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
 	defer teardownSuite(t)
 
 	testCases := make([]testUtils.TestCase, 0)
@@ -37,9 +37,8 @@ func TestRandomNoServersAreStarted(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
-	config.Strategy = "random"
-	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config)
+	config := testUtils.GetConfig(port, constants.Random)
+	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config, nil)
 	defer teardownSuite(t)
 
 	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
@@ -54,9 +53,8 @@ func TestRandomServerDiesAndComesBackOnline(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
-	config.Strategy = "random"
-	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
+	config := testUtils.GetConfig(port, constants.Random)
+	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
 	defer teardownSuite(t)
 
 	testUtils.StopServer(serverProcesses[0])
@@ -90,12 +88,11 @@ func TestRandomRetryRequestTurnedOff(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
-	config.Strategy = "random"
+	config := testUtils.GetConfig(port, constants.Random)
 	config.HealthCheckInterval = "30s"
 	config.RetryRequests = false
 
-	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
+	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
 	defer teardownSuite(t)
 
 	testUtils.StopServer(serverProcesses[0])
@@ -112,12 +109,11 @@ func TestRandomRetryRequestTurnedOn(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting free port for load balancer")
 	}
-	config := testUtils.GetConfig(port)
-	config.Strategy = "random"
+	config := testUtils.GetConfig(port, constants.Random)
 	config.HealthCheckInterval = "30s"
 	config.RetryRequests = true
 
-	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
+	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
 	defer teardownSuite(t)
 
 	testUtils.StopServer(serverProcesses[0])

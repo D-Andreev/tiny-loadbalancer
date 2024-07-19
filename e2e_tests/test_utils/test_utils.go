@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/tiny-loadbalancer/internal/config"
+	"github.com/tiny-loadbalancer/internal/constants"
 )
 
 type TestCase struct {
@@ -35,11 +36,12 @@ func GetFreePort() (port int, err error) {
 	return
 }
 
-func WriteConfigFile(config config.Config, ports []string) {
-	for _, p := range ports {
-		config.ServerUrls = append(config.ServerUrls, "http://localhost:"+p)
+func WriteConfigFile(c config.Config, ports []string, weights []int) {
+	for i, p := range ports {
+		s := config.Server{Url: "http://localhost:" + p, Weight: weights[i]}
+		c.Servers = append(c.Servers, s)
 	}
-	content, err := json.Marshal(config)
+	content, err := json.Marshal(c)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -49,8 +51,8 @@ func WriteConfigFile(config config.Config, ports []string) {
 	}
 }
 
-func StartLoadBalancer(port int, ports []string, config config.Config) *exec.Cmd {
-	WriteConfigFile(config, ports)
+func StartLoadBalancer(port int, ports []string, config config.Config, weights []int) *exec.Cmd {
+	WriteConfigFile(config, ports, weights)
 
 	cmd := exec.Command("go", "run", "../main.go", "../config-test.json")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -106,11 +108,22 @@ func StopServers(slaveProcesses []*exec.Cmd) {
 	}
 }
 
-func SetupSuite(_ *testing.T, ports []string, config config.Config) ([]*exec.Cmd, *exec.Cmd, int, func(t *testing.T)) {
+func SetupSuite(
+	_ *testing.T,
+	ports []string,
+	config config.Config,
+	weights []int,
+) ([]*exec.Cmd, *exec.Cmd, int, func(t *testing.T)) {
+	if weights == nil {
+		weights = make([]int, len(ports))
+		for i := range weights {
+			weights[i] = 0
+		}
+	}
 	var slaveProcesses []*exec.Cmd
 	var loadBalancerProcess *exec.Cmd
 	slaveProcesses = StartServers(slaveProcesses, ports)
-	loadBalancerProcess = StartLoadBalancer(config.Port, ports, config)
+	loadBalancerProcess = StartLoadBalancer(config.Port, ports, config, weights)
 
 	time.Sleep(2 * time.Second)
 
@@ -152,10 +165,10 @@ func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
 	}
 }
 
-func GetConfig(port int) config.Config {
+func GetConfig(port int, strategy constants.Strategy) config.Config {
 	return config.Config{
 		Port:                port,
-		Strategy:            "round-robin",
+		Strategy:            strategy,
 		HealthCheckInterval: "1s",
 	}
 }
@@ -171,4 +184,9 @@ func AssertLoadBalancerStatusCode(t *testing.T, testCases []TestCase, port int) 
 			t.Errorf("Expected %d, got %d", tc.ExpectedStatusCode, res.StatusCode)
 		}
 	}
+}
+
+func PrettyPrint(i interface{}) string {
+	s, _ := json.MarshalIndent(i, "", "\t")
+	return string(s)
 }
