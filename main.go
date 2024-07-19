@@ -34,13 +34,6 @@ func main() {
 		RetryRequests: config.RetryRequests,
 	}
 
-	http.HandleFunc("/", tlb.GetRequestHandler())
-	log.Println("Starting server on port", tlb.Port)
-	err = http.ListenAndServe(fmt.Sprintf(":%d", tlb.Port), nil)
-	if err != nil {
-		panic(err)
-	}
-
 	// Run health checks for servers in interval
 	for _, s := range tlb.Servers {
 		go func(server *server.Server) {
@@ -60,6 +53,13 @@ func main() {
 				}
 			}
 		}(s)
+	}
+
+	http.HandleFunc("/", tlb.GetRequestHandler())
+	log.Println("Starting server on port", tlb.Port)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", tlb.Port), nil)
+	if err != nil {
+		panic(err)
 	}
 }
 
