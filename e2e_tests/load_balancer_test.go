@@ -14,7 +14,7 @@ func TestRoundRobinInvalidStrategy(t *testing.T) {
 		t.Errorf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, "invalid-strategy")
-	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config)
+	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config, nil)
 	defer teardownSuite(t)
 
 	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))

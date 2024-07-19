@@ -17,7 +17,7 @@ func TestRoundRobin(t *testing.T) {
 		t.Errorf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.RoundRobin)
-	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
+	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
 	defer teardownSuite(t)
 
 	testCases := []testUtils.TestCase{
@@ -39,7 +39,7 @@ func TestRoundRobinNoServersAreStarted(t *testing.T) {
 		t.Errorf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.RoundRobin)
-	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config)
+	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config, nil)
 	defer teardownSuite(t)
 
 	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
@@ -55,7 +55,7 @@ func TestRoundRobinServerDiesAndComesBackOnline(t *testing.T) {
 		t.Errorf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.RoundRobin)
-	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
+	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
 	defer teardownSuite(t)
 
 	testUtils.StopServer(serverProcesses[0])
@@ -98,7 +98,7 @@ func TestRoundRobinRetryRequestTurnedOff(t *testing.T) {
 	config.HealthCheckInterval = "30s"
 	config.RetryRequests = false
 
-	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
+	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
 	defer teardownSuite(t)
 
 	testUtils.StopServer(serverProcesses[0])
@@ -119,7 +119,7 @@ func TestRoundRobinRetryRequestTurnedOn(t *testing.T) {
 	config.HealthCheckInterval = "30s"
 	config.RetryRequests = true
 
-	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config)
+	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
 	defer teardownSuite(t)
 
 	testUtils.StopServer(serverProcesses[0])

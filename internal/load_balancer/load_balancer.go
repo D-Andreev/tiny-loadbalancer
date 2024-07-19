@@ -26,15 +26,15 @@ func (tlb *TinyLoadBalancer) GetRequestHandler() http.HandlerFunc {
 	switch tlb.Strategy {
 	case constants.RoundRobin:
 		return func(w http.ResponseWriter, r *http.Request) {
-			tlb.RequestHandler(w, r, tlb.GetNextServerRoundRobin)
+			tlb.requestHandler(w, r, tlb.getNextServerRoundRobin)
 		}
 	case constants.Random:
 		return func(w http.ResponseWriter, r *http.Request) {
-			tlb.RequestHandler(w, r, tlb.GetNextServerRandom)
+			tlb.requestHandler(w, r, tlb.getNextServerRandom)
 		}
 	case constants.WeightedRoundRobin:
 		return func(w http.ResponseWriter, r *http.Request) {
-			tlb.RequestHandler(w, r, tlb.GetNextServerWeightedRoundRobin)
+			tlb.requestHandler(w, r, tlb.getNextServerWeightedRoundRobin)
 		}
 
 	default:
@@ -44,7 +44,7 @@ func (tlb *TinyLoadBalancer) GetRequestHandler() http.HandlerFunc {
 	}
 }
 
-func (tlb *TinyLoadBalancer) RequestHandler(
+func (tlb *TinyLoadBalancer) requestHandler(
 	w http.ResponseWriter,
 	r *http.Request,
 	getNextServer func() (*server.Server, error),
@@ -93,37 +93,38 @@ func (tlb *TinyLoadBalancer) RequestHandler(
 	http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
 }
 
-func (tlb *TinyLoadBalancer) GetNextServerRoundRobin() (*server.Server, error) {
+func (tlb *TinyLoadBalancer) getNextServerRoundRobin() (*server.Server, error) {
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
 	server := tlb.Servers[tlb.NextServer]
 	if !server.Healthy {
-		for i := 0; i < len(tlb.Servers); i++ {
-			tlb.IncrementNextServer()
+		for i := 0; i < len(tlb.Servers)-1; i++ {
+			tlb.incrementNextServer()
 			server = tlb.Servers[tlb.NextServer]
 			if server.Healthy {
 				break
 			}
 		}
+
+		if !server.Healthy {
+			return nil, errors.New("No healthy servers")
+		}
 	}
 
-	if !server.Healthy {
-		return nil, errors.New("No healthy servers")
-	}
-	tlb.IncrementNextServer()
+	tlb.incrementNextServer()
 
 	return server, nil
 }
 
-func (tlb *TinyLoadBalancer) IncrementNextServer() {
+func (tlb *TinyLoadBalancer) incrementNextServer() {
 	tlb.NextServer++
 	if tlb.NextServer >= len(tlb.Servers) {
 		tlb.NextServer = 0
 	}
 }
 
-func (tlb *TinyLoadBalancer) GetNextServerRandom() (*server.Server, error) {
+func (tlb *TinyLoadBalancer) getNextServerRandom() (*server.Server, error) {
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
@@ -144,28 +145,41 @@ func (tlb *TinyLoadBalancer) GetNextServerRandom() (*server.Server, error) {
 	return healthyServers[idx], nil
 }
 
-func (tlb *TinyLoadBalancer) GetNextServerWeightedRoundRobin() (*server.Server, error) {
+func (tlb *TinyLoadBalancer) getNextServerWeightedRoundRobin() (*server.Server, error) {
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
 	server := tlb.Servers[tlb.NextServer]
 	if !server.Healthy || server.CurrentWeight == 0 {
-		for i := 0; i < len(tlb.Servers); i++ {
-			tlb.IncrementNextServer()
+		healthyServersCount := 0
+		for i := 0; i < len(tlb.Servers)-1; i++ {
+			tlb.incrementNextServer()
 			server = tlb.Servers[tlb.NextServer]
 			if server.Healthy {
-				server.CurrentWeight--
+				healthyServersCount++
+			}
+			if server.Healthy && server.CurrentWeight > 0 {
 				break
 			}
 		}
-	}
 
-	if !server.Healthy {
-		return nil, errors.New("No healthy servers")
+		if healthyServersCount == 0 {
+			return nil, errors.New("No healthy servers")
+		}
+
+		if server.CurrentWeight == 0 {
+			tlb.resetServerWeights()
+		}
 	}
 
 	server.CurrentWeight--
-	tlb.IncrementNextServer()
+	tlb.incrementNextServer()
 
 	return server, nil
+}
+
+func (tlb *TinyLoadBalancer) resetServerWeights() {
+	for _, s := range tlb.Servers {
+		s.CurrentWeight = s.Weight
+	}
 }
