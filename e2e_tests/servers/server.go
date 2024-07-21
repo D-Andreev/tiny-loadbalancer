@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 )
 
 /*
@@ -16,6 +17,13 @@ import (
 func main() {
 	args := os.Args[1:]
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/slow" {
+			// Simulate work
+			time.Sleep(3 * time.Second)
+			w.Write([]byte(fmt.Sprintf("Hello from server %s\n", args[0])))
+			return
+		}
+
 		w.Write([]byte(fmt.Sprintf("Hello from server %s\n", args[0])))
 	})
 

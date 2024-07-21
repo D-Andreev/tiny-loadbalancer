@@ -9,6 +9,7 @@ TinyLoadbalancer is an HTTP load balancer that supports several strategies for d
   - Weighted Round Robin
   - Random
   - IP hashing
+  - Least connections
 - Health checks for backend servers.
 - Retry requests on failure.
 - Customizable configuration via `config.json`.
