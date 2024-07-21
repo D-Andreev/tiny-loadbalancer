@@ -7,6 +7,8 @@ import (
 	"github.com/tiny-loadbalancer/internal/server"
 )
 
+var ip = "127.0.0.1"
+
 func TestRoundRobinGetNextServer(t *testing.T) {
 	tlb := &TinyLoadBalancer{
 		Servers: []*server.Server{
@@ -22,7 +24,7 @@ func TestRoundRobinGetNextServer(t *testing.T) {
 		NextServer: 0,
 	}
 
-	server, err := tlb.getNextServerRoundRobin()
+	server, err := tlb.getNextServerRoundRobin(ip)
 	if err != nil {
 		t.Fatalf("Error getting next server: %s", err.Error())
 	}
@@ -31,7 +33,7 @@ func TestRoundRobinGetNextServer(t *testing.T) {
 		t.Fatalf("Expected server to be localhost:8080, got %s", server.URL.Host)
 	}
 
-	server, err = tlb.getNextServerRoundRobin()
+	server, err = tlb.getNextServerRoundRobin(ip)
 	if err != nil {
 		t.Fatalf("Error getting next server: %s", err.Error())
 	}
@@ -40,7 +42,7 @@ func TestRoundRobinGetNextServer(t *testing.T) {
 		t.Fatalf("Expected server to be localhost:8081, got %s", server.URL.Host)
 	}
 
-	server, err = tlb.getNextServerRoundRobin()
+	server, err = tlb.getNextServerRoundRobin(ip)
 	if err != nil {
 		t.Fatalf("Error getting next server: %s", err.Error())
 	}
@@ -65,7 +67,7 @@ func TestRoundRobinNextServerNoHealthyServers(t *testing.T) {
 		NextServer: 0,
 	}
 
-	_, err := tlb.getNextServerRoundRobin()
+	_, err := tlb.getNextServerRoundRobin(ip)
 	if err == nil {
 		t.Fatalf("Expected error getting next server")
 	}
@@ -86,7 +88,7 @@ func TestRoundRobinNextServerOneUnhealthyServer(t *testing.T) {
 		NextServer: 0,
 	}
 
-	server, err := tlb.getNextServerRoundRobin()
+	server, err := tlb.getNextServerRoundRobin(ip)
 	if err != nil {
 		t.Fatalf("Error getting next server: %s", err.Error())
 	}
@@ -112,7 +114,7 @@ func TestWeightedRoundRobinNextserverNoHealthyServers(t *testing.T) {
 		NextServer: 0,
 	}
 
-	_, err := tlb.getNextServerWeightedRoundRobin()
+	_, err := tlb.getNextServerWeightedRoundRobin(ip)
 	if err == nil {
 		t.Fatalf("Expected error getting next server")
 	}
@@ -158,7 +160,7 @@ func TestWeightedRoundRobinNextServer(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		server, err := tlb.getNextServerWeightedRoundRobin()
+		server, err := tlb.getNextServerWeightedRoundRobin(ip)
 		if err != nil {
 			t.Fatalf("Error getting next server: %s", err.Error())
 		}
@@ -212,7 +214,7 @@ func TestWeightedRoundRobinNextServerOneUnhealthyServer(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		server, err := tlb.getNextServerWeightedRoundRobin()
+		server, err := tlb.getNextServerWeightedRoundRobin(ip)
 		if err != nil {
 			t.Fatalf("Error getting next server: %s", err.Error())
 		}
@@ -260,7 +262,7 @@ func TestWeightedRoundRobinNextServerFirstUnhealthyServer(t *testing.T) {
 	}
 
 	for i, tc := range testCases {
-		server, err := tlb.getNextServerWeightedRoundRobin()
+		server, err := tlb.getNextServerWeightedRoundRobin(ip)
 		if err != nil {
 			t.Fatalf("Error getting next server: %s", err.Error())
 		}
@@ -269,6 +271,75 @@ func TestWeightedRoundRobinNextServerFirstUnhealthyServer(t *testing.T) {
 		}
 		if server.CurrentWeight != tc.expectedWeight {
 			t.Fatalf("Test case %d: Expected weight to be %d, got %d", i, tc.expectedWeight, server.Weight)
+		}
+	}
+}
+
+func TestIpHashingNextServer(t *testing.T) {
+	tlb := &TinyLoadBalancer{
+		Servers: []*server.Server{
+			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
+		},
+		NextServer: 0,
+	}
+
+	testCases := []struct {
+		ip           string
+		expectedHost string
+	}{
+		{ip: "127.0.0.1", expectedHost: "localhost:8082"},
+		{ip: "127.0.0.2", expectedHost: "localhost:8080"},
+		{ip: "127.0.0.3", expectedHost: "localhost:8081"},
+		{ip: "127.0.0.1", expectedHost: "localhost:8082"},
+		{ip: "127.0.0.2", expectedHost: "localhost:8080"},
+		{ip: "127.0.0.3", expectedHost: "localhost:8081"},
+	}
+
+	for i, tc := range testCases {
+		server, err := tlb.getNextServerIPHashing(tc.ip)
+
+		if err != nil {
+			t.Fatalf("Error getting next server: %s", err.Error())
+		}
+		if server.URL.Host != tc.expectedHost {
+			t.Fatalf("Test case %d: Expected server to be %s, got %s", i, tc.expectedHost, server.URL.Host)
+		}
+	}
+}
+
+func TestIpHashingNextServerUnhealthyServer(t *testing.T) {
+	tlb := &TinyLoadBalancer{
+		Servers: []*server.Server{
+			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
+		},
+		NextServer: 0,
+	}
+	tlb.Servers[0].Healthy = false
+
+	testCases := []struct {
+		ip           string
+		expectedHost string
+	}{
+		{ip: "127.0.0.1", expectedHost: "localhost:8082"},
+		{ip: "127.0.0.2", expectedHost: "localhost:8081"}, // 8080 is unhealthy, so it goes to next healthy server
+		{ip: "127.0.0.3", expectedHost: "localhost:8081"},
+		{ip: "127.0.0.1", expectedHost: "localhost:8082"},
+		{ip: "127.0.0.2", expectedHost: "localhost:8081"}, // 8080 is unhealthy, so it goes to next healthy server
+		{ip: "127.0.0.3", expectedHost: "localhost:8081"},
+	}
+
+	for i, tc := range testCases {
+		server, err := tlb.getNextServerIPHashing(tc.ip)
+
+		if err != nil {
+			t.Fatalf("Error getting next server: %s", err.Error())
+		}
+		if server.URL.Host != tc.expectedHost {
+			t.Fatalf("Test case %d: Expected server to be %s, got %s", i, tc.expectedHost, server.URL.Host)
 		}
 	}
 }
