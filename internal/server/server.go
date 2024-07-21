@@ -7,19 +7,21 @@ import (
 )
 
 type Server struct {
-	URL           *url.URL
-	Healthy       bool
-	Mut           sync.Mutex
-	Weight        int
-	CurrentWeight int
+	URL               *url.URL
+	Healthy           bool
+	Mut               sync.Mutex
+	Weight            int
+	CurrentWeight     int
+	ActiveConnections int
 }
 
 func NewServer(url *url.URL, weight int) *Server {
 	return &Server{
-		URL:           url,
-		Healthy:       true,
-		Weight:        weight,
-		CurrentWeight: weight,
+		URL:               url,
+		Healthy:           true,
+		Weight:            weight,
+		CurrentWeight:     weight,
+		ActiveConnections: 0,
 	}
 }
 

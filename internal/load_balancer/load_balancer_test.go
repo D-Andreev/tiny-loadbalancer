@@ -343,3 +343,84 @@ func TestIpHashingNextServerUnhealthyServer(t *testing.T) {
 		}
 	}
 }
+
+func TestLeastConnections(t *testing.T) {
+	tlb := &TinyLoadBalancer{
+		Servers: []*server.Server{
+			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
+		},
+		NextServer: 0,
+	}
+	tlb.Servers[0].ActiveConnections = 2
+	tlb.Servers[1].ActiveConnections = 5
+	tlb.Servers[2].ActiveConnections = 0
+
+	testCases := []struct {
+		expectedHost string
+	}{
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8080"},
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8080"},
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8080"},
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8080"},
+		{expectedHost: "localhost:8081"},
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8080"},
+	}
+
+	for i, tc := range testCases {
+		server, err := tlb.getNextServerLeastConnections("")
+
+		if err != nil {
+			t.Fatalf("Error getting next server: %s", err.Error())
+		}
+		if server.URL.Host != tc.expectedHost {
+			t.Fatalf("Test case %d: Expected server to be %s, got %s", i, tc.expectedHost, server.URL.Host)
+		}
+		server.ActiveConnections++
+	}
+}
+func TestLeastConnectionsUnhealthyServer(t *testing.T) {
+	tlb := &TinyLoadBalancer{
+		Servers: []*server.Server{
+			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
+		},
+		NextServer: 0,
+	}
+	tlb.Servers[0].ActiveConnections = 2
+	tlb.Servers[1].ActiveConnections = 5
+	tlb.Servers[2].ActiveConnections = 0
+	tlb.Servers[0].Healthy = false
+
+	testCases := []struct {
+		expectedHost string
+	}{
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8082"},
+		{expectedHost: "localhost:8081"},
+		{expectedHost: "localhost:8082"},
+	}
+
+	for i, tc := range testCases {
+		server, err := tlb.getNextServerLeastConnections("")
+
+		if err != nil {
+			t.Fatalf("Error getting next server: %s", err.Error())
+		}
+		if server.URL.Host != tc.expectedHost {
+			t.Fatalf("Test case %d: Expected server to be %s, got %s", i, tc.expectedHost, server.URL.Host)
+		}
+		server.ActiveConnections++
+	}
+}

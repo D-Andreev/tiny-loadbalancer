@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 type TestCase struct {
 	ExpectedBody       string
 	ExpectedStatusCode int
+	SlowResponse       bool
 }
 
 func GetFreePort() (port int, err error) {
@@ -149,8 +151,12 @@ func GetFreePorts(t *testing.T, n int) []string {
 
 func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
 	t.Helper()
-	for _, tc := range testCases {
-		res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+	for i, tc := range testCases {
+		path := "/"
+		if tc.SlowResponse {
+			path = "/slow"
+		}
+		res, err := http.Get("http://localhost:" + strconv.Itoa(port) + path)
 		if err != nil {
 			t.Errorf("Error making request: %s", err.Error())
 		}
@@ -160,9 +166,39 @@ func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
 		}
 		defer res.Body.Close()
 		if !strings.Contains(string(resBody), tc.ExpectedBody) {
-			t.Errorf("Expected %s, got %s", tc.ExpectedBody, resBody)
+			t.Errorf("Test case %d: Expected %s, got %s", i, tc.ExpectedBody, resBody)
 		}
 	}
+}
+
+func AssertLoadBalancerResponseAsync(t *testing.T, testCases []TestCase, port int) []string {
+	t.Helper()
+	var wg sync.WaitGroup
+	responses := make([]string, len(testCases))
+	for i, tc := range testCases {
+		wg.Add(1)
+		go func(i int, tc TestCase) {
+			defer wg.Done()
+			path := "/"
+			if tc.SlowResponse {
+				path = "/slow"
+			}
+			res, err := http.Get("http://localhost:" + strconv.Itoa(port) + path)
+			if err != nil {
+				t.Errorf("Error making request: %s", err.Error())
+				return
+			}
+			resBody, err := io.ReadAll(res.Body)
+			if err != nil {
+				t.Errorf("Error reading response body: %s", err.Error())
+			}
+			defer res.Body.Close()
+			responses = append(responses, string(resBody))
+		}(i, tc)
+	}
+	wg.Wait()
+
+	return responses
 }
 
 func GetConfig(port int, strategy constants.Strategy) config.Config {

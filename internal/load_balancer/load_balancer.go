@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"math"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -41,6 +42,10 @@ func (tlb *TinyLoadBalancer) GetRequestHandler() http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			tlb.requestHandler(w, r, tlb.getNextServerIPHashing)
 		}
+	case constants.LeastConnections:
+		return func(w http.ResponseWriter, r *http.Request) {
+			tlb.requestHandler(w, r, tlb.getNextServerLeastConnections)
+		}
 
 	default:
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -69,33 +74,50 @@ func (tlb *TinyLoadBalancer) requestHandler(
 		}
 
 		proxy := server.GetReverseProxy()
-		// If we don't want to retry requests, just serve the request as is
-		if !shouldRetryRequests {
-			proxy.ServeHTTP(w, r)
-			return
-		}
-
 		rec := httptest.NewRecorder()
+		server.Mut.Lock()
+		server.ActiveConnections++
+		server.Mut.Unlock()
 		proxy.ServeHTTP(rec, r)
 
 		// If the response was OK, return the response, otherwise for loop continues and tries with the next server
 		// This ensures fault tolerance and hides single server failures from the client
 		if rec.Code < http.StatusInternalServerError {
-			for k, v := range rec.Header() {
-				w.Header()[k] = v
-			}
-			w.WriteHeader(rec.Code)
-			io.Copy(w, rec.Body)
+			tlb.returnResponse(rec, w)
+			server.Mut.Lock()
+			server.ActiveConnections--
+			server.Mut.Unlock()
+			return
+		}
+
+		// If we don't want to retry requests, just return the response
+		if !shouldRetryRequests {
+			tlb.returnResponse(rec, w)
+			tlb.setServerAsDead(server)
 			return
 		}
 
 		fmt.Printf("Server %s returned status %d. Retrying with next server.\n", server.URL.String(), rec.Code)
-		server.Mut.Lock()
-		server.Healthy = false
-		server.Mut.Unlock()
+		tlb.setServerAsDead(server)
 	}
 
 	http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
+}
+
+func (tlb *TinyLoadBalancer) setServerAsDead(server *server.Server) {
+	server.Mut.Lock()
+	server.CurrentWeight = 0
+	server.ActiveConnections = 0
+	server.Healthy = false
+	server.Mut.Unlock()
+}
+
+func (tlb *TinyLoadBalancer) returnResponse(rec *httptest.ResponseRecorder, w http.ResponseWriter) {
+	for k, v := range rec.Header() {
+		w.Header()[k] = v
+	}
+	w.WriteHeader(rec.Code)
+	io.Copy(w, rec.Body)
 }
 
 func (tlb *TinyLoadBalancer) getNextServerRoundRobin(_ string) (*server.Server, error) {
@@ -218,4 +240,23 @@ func (tlb *TinyLoadBalancer) getNextServerIPHashing(ip string) (*server.Server, 
 	}
 
 	return server, nil
+}
+
+func (tlb *TinyLoadBalancer) getNextServerLeastConnections(_ string) (*server.Server, error) {
+	tlb.Mut.Lock()
+	defer tlb.Mut.Unlock()
+
+	minActiveConnections := math.MaxInt32
+	idx := -1
+	for i := 0; i < len(tlb.Servers); i++ {
+		if tlb.Servers[i].ActiveConnections < minActiveConnections && tlb.Servers[i].Healthy {
+			minActiveConnections = tlb.Servers[i].ActiveConnections
+			idx = i
+		}
+	}
+	if idx == -1 {
+		return nil, errors.New("No healthy servers")
+	}
+
+	return tlb.Servers[idx], nil
 }

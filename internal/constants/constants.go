@@ -7,4 +7,5 @@ const (
 	Random             Strategy = "random"
 	WeightedRoundRobin Strategy = "weighted-round-robin"
 	IPHashing          Strategy = "ip-hashing"
+	LeastConnections   Strategy = "least-connections"
 )
