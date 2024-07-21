@@ -8,13 +8,14 @@ TinyLoadbalancer is an HTTP load balancer that supports several strategies for d
   - Round Robin
   - Weighted Round Robin
   - Random
+  - IP hashing
 - Health checks for backend servers.
 - Retry requests on failure.
 - Customizable configuration via `config.json`.
 
 ## Configuration
 
-TinyLoadbalancer expects a path to a `config.json` file that defines its configuration.
+TinyLoadbalancer expects a path to a `config.json` file that defines its configuration. (See `config.json` for an example configuration.) [strategies](https://github.com/D-Andreev/tiny-loadbalancer/blob/main/internal/constants/constants.go#L5)
 
 ```json
 {

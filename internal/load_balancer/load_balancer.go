@@ -3,6 +3,7 @@ package loadbalancer
 import (
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"math/rand"
 	"net/http"
@@ -36,6 +37,10 @@ func (tlb *TinyLoadBalancer) GetRequestHandler() http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			tlb.requestHandler(w, r, tlb.getNextServerWeightedRoundRobin)
 		}
+	case constants.IPHashing:
+		return func(w http.ResponseWriter, r *http.Request) {
+			tlb.requestHandler(w, r, tlb.getNextServerIPHashing)
+		}
 
 	default:
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +52,7 @@ func (tlb *TinyLoadBalancer) GetRequestHandler() http.HandlerFunc {
 func (tlb *TinyLoadBalancer) requestHandler(
 	w http.ResponseWriter,
 	r *http.Request,
-	getNextServer func() (*server.Server, error),
+	getNextServer func(ip string) (*server.Server, error),
 ) {
 	var err error
 	tlb.Mut.Lock()
@@ -57,7 +62,7 @@ func (tlb *TinyLoadBalancer) requestHandler(
 
 	for i := 0; i < serversCount; i++ {
 		var server *server.Server
-		server, err = getNextServer()
+		server, err = getNextServer(r.RemoteAddr)
 		if err != nil {
 			http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
 			return
@@ -93,7 +98,7 @@ func (tlb *TinyLoadBalancer) requestHandler(
 	http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
 }
 
-func (tlb *TinyLoadBalancer) getNextServerRoundRobin() (*server.Server, error) {
+func (tlb *TinyLoadBalancer) getNextServerRoundRobin(_ string) (*server.Server, error) {
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
@@ -124,7 +129,7 @@ func (tlb *TinyLoadBalancer) incrementNextServer() {
 	}
 }
 
-func (tlb *TinyLoadBalancer) getNextServerRandom() (*server.Server, error) {
+func (tlb *TinyLoadBalancer) getNextServerRandom(_ string) (*server.Server, error) {
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
@@ -145,7 +150,7 @@ func (tlb *TinyLoadBalancer) getNextServerRandom() (*server.Server, error) {
 	return healthyServers[idx], nil
 }
 
-func (tlb *TinyLoadBalancer) getNextServerWeightedRoundRobin() (*server.Server, error) {
+func (tlb *TinyLoadBalancer) getNextServerWeightedRoundRobin(_ string) (*server.Server, error) {
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
@@ -182,4 +187,35 @@ func (tlb *TinyLoadBalancer) resetServerWeights() {
 	for _, s := range tlb.Servers {
 		s.CurrentWeight = s.Weight
 	}
+}
+
+func (tlb *TinyLoadBalancer) getNextServerIPHashing(ip string) (*server.Server, error) {
+	tlb.Mut.Lock()
+	defer tlb.Mut.Unlock()
+
+	hash := fnv.New32a()
+	hash.Write([]byte(ip))
+	hashedIP := hash.Sum32()
+
+	idx := int(hashedIP) % len(tlb.Servers)
+	server := tlb.Servers[idx]
+
+	if !server.Healthy {
+		for i := 0; i < len(tlb.Servers)-1; i++ {
+			idx++
+			if idx >= len(tlb.Servers) {
+				idx = 0
+			}
+			server = tlb.Servers[idx]
+			if server.Healthy {
+				break
+			}
+		}
+
+		if !server.Healthy {
+			return nil, errors.New("No healthy servers")
+		}
+	}
+
+	return server, nil
 }
