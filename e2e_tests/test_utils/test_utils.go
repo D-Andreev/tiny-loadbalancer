@@ -166,7 +166,7 @@ func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
 		}
 		defer res.Body.Close()
 		if !strings.Contains(string(resBody), tc.ExpectedBody) {
-			t.Errorf("Test case %d: Expected %s, got %s", i, tc.ExpectedBody, resBody)
+			t.Errorf("Test case %d: Expected 200 %s, got %d %s", i, tc.ExpectedBody, res.StatusCode, resBody)
 		}
 	}
 }

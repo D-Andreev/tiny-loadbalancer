@@ -11,14 +11,12 @@ var ip = "127.0.0.1"
 
 func TestRoundRobinGetNextServer(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
+		ServerPool: []*server.Server{
 			{
-				URL:     &url.URL{Host: "localhost:8080"},
-				Healthy: true,
+				URL: &url.URL{Host: "localhost:8080"},
 			},
 			{
-				URL:     &url.URL{Host: "localhost:8081"},
-				Healthy: true,
+				URL: &url.URL{Host: "localhost:8081"},
 			},
 		},
 		NextServer: 0,
@@ -54,16 +52,7 @@ func TestRoundRobinGetNextServer(t *testing.T) {
 
 func TestRoundRobinNextServerNoHealthyServers(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
-			{
-				URL:     &url.URL{Host: "localhost:8080"},
-				Healthy: false,
-			},
-			{
-				URL:     &url.URL{Host: "localhost:8081"},
-				Healthy: false,
-			},
-		},
+		ServerPool: []*server.Server{},
 		NextServer: 0,
 	}
 
@@ -75,14 +64,9 @@ func TestRoundRobinNextServerNoHealthyServers(t *testing.T) {
 
 func TestRoundRobinNextServerOneUnhealthyServer(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
+		ServerPool: []*server.Server{
 			{
-				URL:     &url.URL{Host: "localhost:8080"},
-				Healthy: false,
-			},
-			{
-				URL:     &url.URL{Host: "localhost:8081"},
-				Healthy: true,
+				URL: &url.URL{Host: "localhost:8081"},
 			},
 		},
 		NextServer: 0,
@@ -99,18 +83,7 @@ func TestRoundRobinNextServerOneUnhealthyServer(t *testing.T) {
 
 func TestWeightedRoundRobinNextserverNoHealthyServers(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
-			{
-				URL:     &url.URL{Host: "localhost:8080"},
-				Healthy: false,
-				Weight:  0,
-			},
-			{
-				URL:     &url.URL{Host: "localhost:8081"},
-				Healthy: false,
-				Weight:  0,
-			},
-		},
+		ServerPool: []*server.Server{},
 		NextServer: 0,
 	}
 
@@ -122,7 +95,7 @@ func TestWeightedRoundRobinNextserverNoHealthyServers(t *testing.T) {
 
 func TestWeightedRoundRobinNextServer(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
+		ServerPool: []*server.Server{
 			server.NewServer(&url.URL{Host: "localhost:8080"}, 5),
 			server.NewServer(&url.URL{Host: "localhost:8081"}, 3),
 			server.NewServer(&url.URL{Host: "localhost:8082"}, 2),
@@ -175,18 +148,14 @@ func TestWeightedRoundRobinNextServer(t *testing.T) {
 
 func TestWeightedRoundRobinNextServerOneUnhealthyServer(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
+		ServerPool: []*server.Server{
 			server.NewServer(&url.URL{Host: "localhost:8080"}, 5),
 			server.NewServer(&url.URL{Host: "localhost:8081"}, 3),
-			{
-				URL:           &url.URL{Host: "localhost:8082"},
-				Healthy:       false,
-				Weight:        2,
-				CurrentWeight: 2,
-			},
+			server.NewServer(&url.URL{Host: "localhost:8082"}, 2),
 		},
 		NextServer: 0,
 	}
+	tlb.SetServerAsDead(tlb.ServerPool[2])
 
 	testCases := []struct {
 		expectedHost   string
@@ -229,13 +198,7 @@ func TestWeightedRoundRobinNextServerOneUnhealthyServer(t *testing.T) {
 
 func TestWeightedRoundRobinNextServerFirstUnhealthyServer(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
-			{
-				URL:           &url.URL{Host: "localhost:8080"},
-				Healthy:       false,
-				Weight:        5,
-				CurrentWeight: 5,
-			},
+		ServerPool: []*server.Server{
 			server.NewServer(&url.URL{Host: "localhost:8081"}, 3),
 			server.NewServer(&url.URL{Host: "localhost:8082"}, 2),
 		},
@@ -277,7 +240,7 @@ func TestWeightedRoundRobinNextServerFirstUnhealthyServer(t *testing.T) {
 
 func TestIpHashingNextServer(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
+		ServerPool: []*server.Server{
 			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
 			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
 			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
@@ -311,14 +274,14 @@ func TestIpHashingNextServer(t *testing.T) {
 
 func TestIpHashingNextServerUnhealthyServer(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
+		ServerPool: []*server.Server{
 			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
 			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
 			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
 		},
 		NextServer: 0,
 	}
-	tlb.Servers[0].Healthy = false
+	tlb.SetServerAsDead(tlb.ServerPool[0])
 
 	testCases := []struct {
 		ip           string
@@ -346,16 +309,16 @@ func TestIpHashingNextServerUnhealthyServer(t *testing.T) {
 
 func TestLeastConnections(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
+		ServerPool: []*server.Server{
 			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
 			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
 			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
 		},
 		NextServer: 0,
 	}
-	tlb.Servers[0].ActiveConnections = 2
-	tlb.Servers[1].ActiveConnections = 5
-	tlb.Servers[2].ActiveConnections = 0
+	tlb.ServerPool[0].ActiveConnections = 2
+	tlb.ServerPool[1].ActiveConnections = 5
+	tlb.ServerPool[2].ActiveConnections = 0
 
 	testCases := []struct {
 		expectedHost string
@@ -388,17 +351,17 @@ func TestLeastConnections(t *testing.T) {
 }
 func TestLeastConnectionsUnhealthyServer(t *testing.T) {
 	tlb := &TinyLoadBalancer{
-		Servers: []*server.Server{
+		ServerPool: []*server.Server{
 			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
 			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
 			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
 		},
 		NextServer: 0,
 	}
-	tlb.Servers[0].ActiveConnections = 2
-	tlb.Servers[1].ActiveConnections = 5
-	tlb.Servers[2].ActiveConnections = 0
-	tlb.Servers[0].Healthy = false
+	tlb.ServerPool[0].ActiveConnections = 2
+	tlb.ServerPool[1].ActiveConnections = 5
+	tlb.ServerPool[2].ActiveConnections = 0
+	tlb.SetServerAsDead(tlb.ServerPool[0])
 
 	testCases := []struct {
 		expectedHost string

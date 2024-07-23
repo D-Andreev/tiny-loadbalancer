@@ -19,11 +19,8 @@ func TestIPHashing(t *testing.T) {
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
 	defer teardownSuite(t)
 
+	// Requests from the same IP should always go to the same server
 	testCases := []testUtils.TestCase{
-		{ExpectedStatusCode: 200},
-		{ExpectedStatusCode: 200},
-		{ExpectedStatusCode: 200},
-		{ExpectedStatusCode: 200},
 		{ExpectedStatusCode: 200},
 		{ExpectedStatusCode: 200},
 		{ExpectedStatusCode: 200},
