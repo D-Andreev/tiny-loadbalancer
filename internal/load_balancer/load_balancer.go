@@ -63,10 +63,9 @@ func (tlb *TinyLoadBalancer) requestHandler(
 	var err error
 	tlb.Mut.Lock()
 	shouldRetryRequests := tlb.RetryRequests
-	serversCount := len(tlb.ServerPool)
 	tlb.Mut.Unlock()
 
-	for i := 0; i < serversCount; i++ {
+	for i := 0; i < len(tlb.ServerPool); i++ {
 		var server *server.Server
 		server, err = getNextServer(r.RemoteAddr)
 		if err != nil {
@@ -102,7 +101,7 @@ func (tlb *TinyLoadBalancer) requestHandler(
 		tlb.SetServerAsDead(server)
 	}
 
-	http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
+	http.Error(w, "No healthy servers", http.StatusBadGateway)
 }
 
 func (tlb *TinyLoadBalancer) SetServerAsDead(serverToKill *server.Server) {
@@ -120,7 +119,6 @@ func (tlb *TinyLoadBalancer) SetServerAsDead(serverToKill *server.Server) {
 		updatedServerPool = append(updatedServerPool, server)
 	}
 	tlb.ServerPool = updatedServerPool
-	fmt.Println("Updated server ppol", len(tlb.ServerPool))
 }
 
 func (tlb *TinyLoadBalancer) SetServerAsAlive(s *server.Server) {
@@ -190,7 +188,7 @@ func (tlb *TinyLoadBalancer) getNextServerWeightedRoundRobin(_ string) (*server.
 
 	server := tlb.ServerPool[tlb.NextServer]
 	if server.CurrentWeight == 0 {
-		for i := 0; i < len(tlb.ServerPool)-1; i++ {
+		for range tlb.ServerPool {
 			tlb.incrementNextServer()
 			server = tlb.ServerPool[tlb.NextServer]
 			if server.CurrentWeight > 0 {
@@ -219,8 +217,6 @@ func (tlb *TinyLoadBalancer) getNextServerIPHashing(ip string) (*server.Server, 
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
-	fmt.Println(tlb.ServerPool)
-
 	if len(tlb.ServerPool) == 0 {
 		return nil, errors.New("No healthy servers")
 	}
@@ -231,7 +227,8 @@ func (tlb *TinyLoadBalancer) getNextServerIPHashing(ip string) (*server.Server, 
 
 	idx := int(hashedIP) % len(tlb.ServerPool)
 	server := tlb.ServerPool[idx]
-	fmt.Println("IP Hashing: ", ip, " -> ", server.URL.String(), idx, len(tlb.ServerPool))
+
+	fmt.Println("IP Hashing: ", ip, " -> ", server.URL.String())
 
 	return server, nil
 }
@@ -246,9 +243,9 @@ func (tlb *TinyLoadBalancer) getNextServerLeastConnections(_ string) (*server.Se
 
 	minActiveConnections := math.MaxInt32
 	idx := -1
-	for i := 0; i < len(tlb.ServerPool); i++ {
-		if tlb.ServerPool[i].ActiveConnections < minActiveConnections {
-			minActiveConnections = tlb.ServerPool[i].ActiveConnections
+	for i, s := range tlb.ServerPool {
+		if s.ActiveConnections < minActiveConnections {
+			minActiveConnections = s.ActiveConnections
 			idx = i
 		}
 	}

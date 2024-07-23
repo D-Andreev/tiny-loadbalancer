@@ -287,11 +287,11 @@ func TestIpHashingNextServerUnhealthyServer(t *testing.T) {
 		ip           string
 		expectedHost string
 	}{
-		{ip: "127.0.0.1", expectedHost: "localhost:8082"},
-		{ip: "127.0.0.2", expectedHost: "localhost:8081"}, // 8080 is unhealthy, so it goes to next healthy server
+		{ip: "127.0.0.1", expectedHost: "localhost:8081"},
+		{ip: "127.0.0.2", expectedHost: "localhost:8082"}, // 8080 is unhealthy, so it goes to next healthy server
 		{ip: "127.0.0.3", expectedHost: "localhost:8081"},
-		{ip: "127.0.0.1", expectedHost: "localhost:8082"},
-		{ip: "127.0.0.2", expectedHost: "localhost:8081"}, // 8080 is unhealthy, so it goes to next healthy server
+		{ip: "127.0.0.1", expectedHost: "localhost:8081"},
+		{ip: "127.0.0.2", expectedHost: "localhost:8082"}, // 8080 is unhealthy, so it goes to next healthy server
 		{ip: "127.0.0.3", expectedHost: "localhost:8081"},
 	}
 

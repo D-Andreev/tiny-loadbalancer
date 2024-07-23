@@ -23,7 +23,7 @@ func main() {
 			w.Write([]byte(fmt.Sprintf("Hello from server %s\n", args[0])))
 			return
 		}
-
+		fmt.Println("Request received", r.RemoteAddr)
 		w.Write([]byte(fmt.Sprintf("Hello from server %s\n", args[0])))
 	})
 

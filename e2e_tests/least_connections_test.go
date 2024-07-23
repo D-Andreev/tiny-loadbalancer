@@ -76,11 +76,11 @@ func TestLeastConnectionsServerDiesAndComesBackOnline(t *testing.T) {
 	time.Sleep(time.Second * 2)
 
 	testCases := []testUtils.TestCase{
-		{ExpectedBody: "Hello from server " + ports[1]},
-		{ExpectedBody: "Hello from server " + ports[1]},
+		{ExpectedBody: "Hello from server " + ports[1], SlowResponse: true},
+		{ExpectedBody: "Hello from server " + ports[2]},
 	}
 
-	testUtils.AssertLoadBalancerResponse(t, testCases, port)
+	testUtils.AssertLoadBalancerResponseAsync(t, testCases, port)
 
 	cmd := testUtils.StartServer(ports[0])
 	serverProcesses[0] = cmd
@@ -88,12 +88,12 @@ func TestLeastConnectionsServerDiesAndComesBackOnline(t *testing.T) {
 	time.Sleep(time.Second * 2)
 
 	testCases = []testUtils.TestCase{
-		{ExpectedBody: "Hello from server " + ports[0]},
-		{ExpectedBody: "Hello from server " + ports[0]},
-		{ExpectedBody: "Hello from server " + ports[0]},
+		{ExpectedBody: "Hello from server " + ports[0], SlowResponse: true},
+		{ExpectedBody: "Hello from server " + ports[1], SlowResponse: true},
+		{ExpectedBody: "Hello from server " + ports[2], SlowResponse: true},
 	}
 
-	testUtils.AssertLoadBalancerResponse(t, testCases, port)
+	testUtils.AssertLoadBalancerResponseAsync(t, testCases, port)
 }
 
 func TestLeastConnectionsRetryRequestTurnedOff(t *testing.T) {
