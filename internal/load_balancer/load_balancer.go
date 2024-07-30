@@ -16,8 +16,7 @@ import (
 )
 
 type TinyLoadBalancer struct {
-	ServerPool    []*server.Server
-	DeadServers   []*server.Server
+	Servers       []*server.Server
 	Port          int
 	Mut           sync.Mutex
 	NextServer    int
@@ -63,9 +62,10 @@ func (tlb *TinyLoadBalancer) requestHandler(
 	var err error
 	tlb.Mut.Lock()
 	shouldRetryRequests := tlb.RetryRequests
+	serversCount := len(tlb.Servers)
 	tlb.Mut.Unlock()
 
-	for i := 0; i < len(tlb.ServerPool); i++ {
+	for i := 0; i < serversCount; i++ {
 		var server *server.Server
 		server, err = getNextServer(r.RemoteAddr)
 		if err != nil {
@@ -93,46 +93,23 @@ func (tlb *TinyLoadBalancer) requestHandler(
 		// If we don't want to retry requests, just return the response
 		if !shouldRetryRequests {
 			tlb.returnResponse(rec, w)
-			tlb.SetServerAsDead(server)
+			tlb.setServerAsDead(server)
 			return
 		}
 
 		fmt.Printf("Server %s returned status %d. Retrying with next server.\n", server.URL.String(), rec.Code)
-		tlb.SetServerAsDead(server)
+		tlb.setServerAsDead(server)
 	}
 
 	http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
 }
 
-func (tlb *TinyLoadBalancer) SetServerAsDead(serverToKill *server.Server) {
-	tlb.Mut.Lock()
-	defer tlb.Mut.Unlock()
-	serverToKill.CurrentWeight = 0
-	serverToKill.ActiveConnections = 0
-
-	var updatedServerPool []*server.Server
-	for _, server := range tlb.ServerPool {
-		if serverToKill == server {
-			tlb.DeadServers = append(tlb.DeadServers, serverToKill)
-			continue
-		}
-		updatedServerPool = append(updatedServerPool, server)
-	}
-	tlb.ServerPool = updatedServerPool
-}
-
-func (tlb *TinyLoadBalancer) SetServerAsAlive(s *server.Server) {
-	tlb.Mut.Lock()
-	defer tlb.Mut.Unlock()
-	var updatedDeadServers []*server.Server
-	for _, server := range tlb.DeadServers {
-		if s == server {
-			continue
-		}
-		updatedDeadServers = append(updatedDeadServers, server)
-	}
-	tlb.DeadServers = updatedDeadServers
-	tlb.ServerPool = append(tlb.ServerPool, s)
+func (tlb *TinyLoadBalancer) setServerAsDead(server *server.Server) {
+	server.Mut.Lock()
+	server.CurrentWeight = 0
+	server.ActiveConnections = 0
+	server.Healthy = false
+	server.Mut.Unlock()
 }
 
 func (tlb *TinyLoadBalancer) returnResponse(rec *httptest.ResponseRecorder, w http.ResponseWriter) {
@@ -147,11 +124,21 @@ func (tlb *TinyLoadBalancer) getNextServerRoundRobin(_ string) (*server.Server, 
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
-	if len(tlb.ServerPool) == 0 {
-		return nil, errors.New("No healthy servers")
+	server := tlb.Servers[tlb.NextServer]
+	if !server.Healthy {
+		for i := 0; i < len(tlb.Servers)-1; i++ {
+			tlb.incrementNextServer()
+			server = tlb.Servers[tlb.NextServer]
+			if server.Healthy {
+				break
+			}
+		}
+
+		if !server.Healthy {
+			return nil, errors.New("No healthy servers")
+		}
 	}
 
-	server := tlb.ServerPool[tlb.NextServer]
 	tlb.incrementNextServer()
 
 	return server, nil
@@ -159,7 +146,7 @@ func (tlb *TinyLoadBalancer) getNextServerRoundRobin(_ string) (*server.Server, 
 
 func (tlb *TinyLoadBalancer) incrementNextServer() {
 	tlb.NextServer++
-	if tlb.NextServer >= len(tlb.ServerPool) {
+	if tlb.NextServer >= len(tlb.Servers) {
 		tlb.NextServer = 0
 	}
 }
@@ -168,32 +155,43 @@ func (tlb *TinyLoadBalancer) getNextServerRandom(_ string) (*server.Server, erro
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
-	if len(tlb.ServerPool) == 0 {
+	healthyServers := make([]*server.Server, 0)
+	for _, s := range tlb.Servers {
+		if s.Healthy {
+			healthyServers = append(healthyServers, s)
+		}
+	}
+
+	if len(healthyServers) == 0 {
 		return nil, errors.New("No healthy servers")
 	}
 
-	max := len(tlb.ServerPool)
+	max := len(healthyServers)
 	idx := rand.Intn(max)
 
-	return tlb.ServerPool[idx], nil
+	return healthyServers[idx], nil
 }
 
 func (tlb *TinyLoadBalancer) getNextServerWeightedRoundRobin(_ string) (*server.Server, error) {
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
-	if len(tlb.ServerPool) == 0 {
-		return nil, errors.New("No healthy servers")
-	}
-
-	server := tlb.ServerPool[tlb.NextServer]
-	if server.CurrentWeight == 0 {
-		for range tlb.ServerPool {
+	server := tlb.Servers[tlb.NextServer]
+	if !server.Healthy || server.CurrentWeight == 0 {
+		healthyServersCount := 0
+		for i := 0; i < len(tlb.Servers)-1; i++ {
 			tlb.incrementNextServer()
-			server = tlb.ServerPool[tlb.NextServer]
-			if server.CurrentWeight > 0 {
+			server = tlb.Servers[tlb.NextServer]
+			if server.Healthy {
+				healthyServersCount++
+			}
+			if server.Healthy && server.CurrentWeight > 0 {
 				break
 			}
+		}
+
+		if healthyServersCount == 0 {
+			return nil, errors.New("No healthy servers")
 		}
 
 		if server.CurrentWeight == 0 {
@@ -208,7 +206,7 @@ func (tlb *TinyLoadBalancer) getNextServerWeightedRoundRobin(_ string) (*server.
 }
 
 func (tlb *TinyLoadBalancer) resetServerWeights() {
-	for _, s := range tlb.ServerPool {
+	for _, s := range tlb.Servers {
 		s.CurrentWeight = s.Weight
 	}
 }
@@ -217,18 +215,29 @@ func (tlb *TinyLoadBalancer) getNextServerIPHashing(ip string) (*server.Server, 
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
-	if len(tlb.ServerPool) == 0 {
-		return nil, errors.New("No healthy servers")
-	}
-
 	hash := fnv.New32a()
 	hash.Write([]byte(ip))
 	hashedIP := hash.Sum32()
 
-	idx := int(hashedIP) % len(tlb.ServerPool)
-	server := tlb.ServerPool[idx]
+	idx := int(hashedIP) % len(tlb.Servers)
+	server := tlb.Servers[idx]
 
-	fmt.Println("IP Hashing: ", ip, " -> ", server.URL.String())
+	if !server.Healthy {
+		for i := 0; i < len(tlb.Servers)-1; i++ {
+			idx++
+			if idx >= len(tlb.Servers) {
+				idx = 0
+			}
+			server = tlb.Servers[idx]
+			if server.Healthy {
+				break
+			}
+		}
+
+		if !server.Healthy {
+			return nil, errors.New("No healthy servers")
+		}
+	}
 
 	return server, nil
 }
@@ -237,18 +246,17 @@ func (tlb *TinyLoadBalancer) getNextServerLeastConnections(_ string) (*server.Se
 	tlb.Mut.Lock()
 	defer tlb.Mut.Unlock()
 
-	if len(tlb.ServerPool) == 0 {
-		return nil, errors.New("No healthy servers")
-	}
-
 	minActiveConnections := math.MaxInt32
 	idx := -1
-	for i, s := range tlb.ServerPool {
-		if s.ActiveConnections < minActiveConnections {
-			minActiveConnections = s.ActiveConnections
+	for i := 0; i < len(tlb.Servers); i++ {
+		if tlb.Servers[i].ActiveConnections < minActiveConnections && tlb.Servers[i].Healthy {
+			minActiveConnections = tlb.Servers[i].ActiveConnections
 			idx = i
 		}
 	}
+	if idx == -1 {
+		return nil, errors.New("No healthy servers")
+	}
 
-	return tlb.ServerPool[idx], nil
+	return tlb.Servers[idx], nil
 }

@@ -29,23 +29,27 @@ func main() {
 	servers := getServers(config)
 	tlb := &lb.TinyLoadBalancer{
 		Port:          config.Port,
-		ServerPool:    servers,
+		Servers:       servers,
 		Strategy:      config.Strategy,
 		RetryRequests: config.RetryRequests,
 	}
 
 	// Run health checks for servers in interval
-	for _, s := range tlb.ServerPool {
+	for _, s := range tlb.Servers {
 		go func(server *server.Server) {
 			for range time.Tick(healthCheckInterval) {
 				healthEndpointUrl := fmt.Sprintf("%s/health", server.URL.String())
 				res, err := http.Get(healthEndpointUrl)
 				if err != nil || res.StatusCode >= http.StatusInternalServerError {
 					fmt.Printf("Server %s is not healthy\n", healthEndpointUrl)
-					tlb.SetServerAsDead(server)
+					server.Mut.Lock()
+					server.Healthy = false
+					server.Mut.Unlock()
 				} else {
 					defer res.Body.Close()
-					tlb.SetServerAsAlive(server)
+					server.Mut.Lock()
+					server.Healthy = true
+					server.Mut.Unlock()
 				}
 			}
 		}(s)
