@@ -14,7 +14,7 @@ func TestRoundRobinWeighted(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.WeightedRoundRobin)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, []int{5, 3, 2})
@@ -51,15 +51,18 @@ func TestRoundRobinWeighted(t *testing.T) {
 func TestRoundRobinWeightedNoServersAreStarted(t *testing.T) {
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.WeightedRoundRobin)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config, []int{5, 3, 2})
 	defer teardownSuite(t)
 
-	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
+	res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("Error sending request to load balancer: %s", err)
+	}
 	if res.StatusCode != http.StatusServiceUnavailable {
-		t.Errorf("Expected service unavailable status code, got %d", res.StatusCode)
+		t.Fatalf("Expected service unavailable status code, got %d", res.StatusCode)
 	}
 }
 
@@ -67,7 +70,7 @@ func TestRoundRobinWeightedServerDiesAndComesBackOnline(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.WeightedRoundRobin)
 	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, []int{5, 3, 2})
@@ -117,7 +120,7 @@ func TestRoundRobinWeightedRetryRequestTurnedOff(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.WeightedRoundRobin)
 	config.HealthCheckInterval = "30s"
@@ -128,9 +131,12 @@ func TestRoundRobinWeightedRetryRequestTurnedOff(t *testing.T) {
 
 	testUtils.StopServer(serverProcesses[0])
 
-	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
+	res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("Error making request to loadbalancer %s", err)
+	}
 	if res.StatusCode != http.StatusBadGateway {
-		t.Errorf("Expected bad gateway status code, got %d", res.StatusCode)
+		t.Fatalf("Expected bad gateway status code, got %d", res.StatusCode)
 	}
 }
 
@@ -138,7 +144,7 @@ func TestRoundRobinWeightedRetryRequestTurnedOn(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.WeightedRoundRobin)
 	config.HealthCheckInterval = "30s"

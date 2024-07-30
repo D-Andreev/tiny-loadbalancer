@@ -127,7 +127,7 @@ func SetupSuite(
 	slaveProcesses = StartServers(slaveProcesses, ports)
 	loadBalancerProcess = StartLoadBalancer(config.Port, ports, config, weights)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	return slaveProcesses, loadBalancerProcess, config.Port, func(t *testing.T) {
 		StopServers(slaveProcesses)
@@ -141,7 +141,7 @@ func GetFreePorts(t *testing.T, n int) []string {
 	for i := 0; i < n; i++ {
 		port, err := GetFreePort()
 		if err != nil {
-			t.Errorf(err.Error())
+			t.Fatalf(err.Error())
 		}
 		ports = append(ports, strconv.Itoa(port))
 	}
@@ -158,15 +158,15 @@ func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
 		}
 		res, err := http.Get("http://localhost:" + strconv.Itoa(port) + path)
 		if err != nil {
-			t.Errorf("Error making request: %s", err.Error())
+			t.Fatalf("Error making request: %s", err.Error())
 		}
 		resBody, err := io.ReadAll(res.Body)
 		if err != nil {
-			t.Errorf("Error reading response body: %s", err.Error())
+			t.Fatalf("Error reading response body: %s", err.Error())
 		}
 		defer res.Body.Close()
 		if !strings.Contains(string(resBody), tc.ExpectedBody) {
-			t.Errorf("Test case %d: Expected %s, got %s", i, tc.ExpectedBody, resBody)
+			t.Fatalf("Test case %d: Expected 200 %s, got %d %s", i, tc.ExpectedBody, res.StatusCode, resBody)
 		}
 	}
 }
@@ -185,12 +185,12 @@ func AssertLoadBalancerResponseAsync(t *testing.T, testCases []TestCase, port in
 			}
 			res, err := http.Get("http://localhost:" + strconv.Itoa(port) + path)
 			if err != nil {
-				t.Errorf("Error making request: %s", err.Error())
+				t.Fatalf("Error making request: %s", err.Error())
 				return
 			}
 			resBody, err := io.ReadAll(res.Body)
 			if err != nil {
-				t.Errorf("Error reading response body: %s", err.Error())
+				t.Fatalf("Error reading response body: %s", err.Error())
 			}
 			defer res.Body.Close()
 			responses = append(responses, string(resBody))
@@ -211,13 +211,14 @@ func GetConfig(port int, strategy constants.Strategy) config.Config {
 
 func AssertLoadBalancerStatusCode(t *testing.T, testCases []TestCase, port int) {
 	t.Helper()
+
 	for _, tc := range testCases {
 		res, err := http.Get("http://localhost:" + strconv.Itoa(port))
 		if err != nil {
-			t.Errorf("Error making request: %s", err.Error())
+			t.Fatalf("Error making request: %s", err.Error())
 		}
 		if res.StatusCode != tc.ExpectedStatusCode {
-			t.Errorf("Expected %d, got %d", tc.ExpectedStatusCode, res.StatusCode)
+			t.Fatalf("Expected %d, got %d", tc.ExpectedStatusCode, res.StatusCode)
 		}
 	}
 }

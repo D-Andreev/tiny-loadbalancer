@@ -11,15 +11,18 @@ import (
 func TestRoundRobinInvalidStrategy(t *testing.T) {
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, "invalid-strategy")
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config, nil)
 	defer teardownSuite(t)
 
-	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
+	res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("Error sending request to load balancer: %s", err)
+	}
 	if res.StatusCode != http.StatusBadRequest {
-		t.Errorf("Expected bad request status code, got %d", res.StatusCode)
+		t.Fatalf("Expected bad request status code, got %d", res.StatusCode)
 	}
 }
 

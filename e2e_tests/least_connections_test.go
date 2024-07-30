@@ -15,7 +15,7 @@ func TestLeastConnections(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.LeastConnections)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
@@ -42,7 +42,7 @@ func TestLeastConnections(t *testing.T) {
 		}
 
 		if !receivedResponse {
-			t.Errorf("Test case %d: Expected %s, got %s", i, tc.ExpectedBody, responses)
+			t.Fatalf("Test case %d: Expected %s, got %s", i, tc.ExpectedBody, responses)
 		}
 	}
 }
@@ -50,15 +50,18 @@ func TestLeastConnections(t *testing.T) {
 func TestLeastConnectionsNoServersAreStarted(t *testing.T) {
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.LeastConnections)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config, nil)
 	defer teardownSuite(t)
 
-	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
+	res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("Error sending request to load balancer: %s", err)
+	}
 	if res.StatusCode != http.StatusServiceUnavailable {
-		t.Errorf("Expected service unavailable status code, got %d", res.StatusCode)
+		t.Fatalf("Expected service unavailable status code, got %d", res.StatusCode)
 	}
 }
 
@@ -66,7 +69,7 @@ func TestLeastConnectionsServerDiesAndComesBackOnline(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.LeastConnections)
 	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
@@ -76,11 +79,11 @@ func TestLeastConnectionsServerDiesAndComesBackOnline(t *testing.T) {
 	time.Sleep(time.Second * 2)
 
 	testCases := []testUtils.TestCase{
-		{ExpectedBody: "Hello from server " + ports[1]},
-		{ExpectedBody: "Hello from server " + ports[1]},
+		{ExpectedBody: "Hello from server " + ports[1], SlowResponse: true},
+		{ExpectedBody: "Hello from server " + ports[2]},
 	}
 
-	testUtils.AssertLoadBalancerResponse(t, testCases, port)
+	testUtils.AssertLoadBalancerResponseAsync(t, testCases, port)
 
 	cmd := testUtils.StartServer(ports[0])
 	serverProcesses[0] = cmd
@@ -88,19 +91,19 @@ func TestLeastConnectionsServerDiesAndComesBackOnline(t *testing.T) {
 	time.Sleep(time.Second * 2)
 
 	testCases = []testUtils.TestCase{
-		{ExpectedBody: "Hello from server " + ports[0]},
-		{ExpectedBody: "Hello from server " + ports[0]},
-		{ExpectedBody: "Hello from server " + ports[0]},
+		{ExpectedBody: "Hello from server " + ports[0], SlowResponse: true},
+		{ExpectedBody: "Hello from server " + ports[1], SlowResponse: true},
+		{ExpectedBody: "Hello from server " + ports[2], SlowResponse: true},
 	}
 
-	testUtils.AssertLoadBalancerResponse(t, testCases, port)
+	testUtils.AssertLoadBalancerResponseAsync(t, testCases, port)
 }
 
 func TestLeastConnectionsRetryRequestTurnedOff(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.LeastConnections)
 	config.HealthCheckInterval = "30s"
@@ -111,9 +114,12 @@ func TestLeastConnectionsRetryRequestTurnedOff(t *testing.T) {
 
 	testUtils.StopServer(serverProcesses[0])
 
-	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
+	res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("Error sending request to load balancer: %s", err)
+	}
 	if res.StatusCode != http.StatusBadGateway {
-		t.Errorf("Expected bad gateway status code, got %d", res.StatusCode)
+		t.Fatalf("Expected bad gateway status code, got %d", res.StatusCode)
 	}
 }
 
@@ -121,7 +127,7 @@ func TestLeastConnectionsRetryRequestTurnedOn(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.LeastConnections)
 	config.HealthCheckInterval = "30s"

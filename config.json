@@ -1,7 +1,7 @@
 {
   "port": 3333,
-  "strategy": "weighted-round-robin",
-  "healthCheckInterval": "30s",
+  "strategy": "ip-hashing",
+  "healthCheckInterval": "5s",
   "retryRequests": true,
   "servers": [
     {
