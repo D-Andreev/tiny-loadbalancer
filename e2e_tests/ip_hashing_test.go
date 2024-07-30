@@ -13,7 +13,7 @@ func TestIPHashing(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.IPHashing)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
@@ -34,14 +34,14 @@ func TestIPHashing(t *testing.T) {
 func TestIPHashingNoServersAreStarted(t *testing.T) {
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.IPHashing)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config, nil)
 	defer teardownSuite(t)
 
-	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
+	res, err := http.Get("http://localhost:" + strconv.Itoa(port))
 	if res.StatusCode != http.StatusServiceUnavailable {
-		t.Errorf("Expected service unavailable status code, got %d", res.StatusCode)
+		t.Fatalf("Expected service unavailable status code, got %d", res.StatusCode)
 	}
 }

@@ -14,7 +14,7 @@ func TestRandom(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 3)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.Random)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
@@ -35,15 +35,18 @@ func TestRandom(t *testing.T) {
 func TestRandomNoServersAreStarted(t *testing.T) {
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.Random)
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config, nil)
 	defer teardownSuite(t)
 
-	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
+	res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("Error sending request to load balancer: %s", err)
+	}
 	if res.StatusCode != http.StatusServiceUnavailable {
-		t.Errorf("Expected service unavailable status code, got %d", res.StatusCode)
+		t.Fatalf("Expected service unavailable status code, got %d", res.StatusCode)
 	}
 }
 
@@ -51,7 +54,7 @@ func TestRandomServerDiesAndComesBackOnline(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 2)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.Random)
 	serverProcesses, _, port, teardownSuite := testUtils.SetupSuite(t, ports, config, nil)
@@ -86,7 +89,7 @@ func TestRandomRetryRequestTurnedOff(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 1)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.Random)
 	config.HealthCheckInterval = "30s"
@@ -97,9 +100,12 @@ func TestRandomRetryRequestTurnedOff(t *testing.T) {
 
 	testUtils.StopServer(serverProcesses[0])
 
-	res, _ := http.Get("http://localhost:" + strconv.Itoa(port))
+	res, err := http.Get("http://localhost:" + strconv.Itoa(port))
+	if err != nil {
+		t.Fatalf("Error sending request to load balancer: %s", err)
+	}
 	if res.StatusCode != http.StatusBadGateway {
-		t.Errorf("Expected bad gateway status code, got %d", res.StatusCode)
+		t.Fatalf("Expected bad gateway status code, got %d", res.StatusCode)
 	}
 }
 
@@ -107,7 +113,7 @@ func TestRandomRetryRequestTurnedOn(t *testing.T) {
 	ports := testUtils.GetFreePorts(t, 2)
 	port, err := testUtils.GetFreePort()
 	if err != nil {
-		t.Errorf("Error getting free port for load balancer")
+		t.Fatalf("Error getting free port for load balancer")
 	}
 	config := testUtils.GetConfig(port, constants.Random)
 	config.HealthCheckInterval = "30s"

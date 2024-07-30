@@ -101,7 +101,7 @@ func (tlb *TinyLoadBalancer) requestHandler(
 		tlb.SetServerAsDead(server)
 	}
 
-	http.Error(w, "No healthy servers", http.StatusBadGateway)
+	http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
 }
 
 func (tlb *TinyLoadBalancer) SetServerAsDead(serverToKill *server.Server) {
