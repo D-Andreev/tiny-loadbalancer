@@ -1,7 +1,6 @@
 package test_utils
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -63,17 +62,6 @@ func StartLoadBalancer(port int, ports []string, config config.Config, weights [
 		log.Fatalf("Failed to start load balancer: %v", err)
 	}
 	fmt.Printf("Started load balancer on port %d, with PID: %d\n", port, cmd.Process.Pid)
-	reader, writer := io.Pipe()
-	scannerStopped := make(chan struct{})
-	go func() {
-		defer close(scannerStopped)
-
-		scanner := bufio.NewScanner(reader)
-		for scanner.Scan() {
-			fmt.Println(scanner.Text())
-		}
-	}()
-	cmd.Stdout = writer
 
 	return cmd
 }
@@ -139,7 +127,7 @@ func SetupSuite(
 	slaveProcesses = StartServers(slaveProcesses, ports)
 	loadBalancerProcess = StartLoadBalancer(config.Port, ports, config, weights)
 
-	time.Sleep(2 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	return slaveProcesses, loadBalancerProcess, config.Port, func(t *testing.T) {
 		StopServers(slaveProcesses)
