@@ -211,7 +211,7 @@ func GetConfig(port int, strategy constants.Strategy) config.Config {
 
 func AssertLoadBalancerStatusCode(t *testing.T, testCases []TestCase, port int) {
 	t.Helper()
-	fmt.Println("HERE")
+
 	for _, tc := range testCases {
 		res, err := http.Get("http://localhost:" + strconv.Itoa(port))
 		if err != nil {

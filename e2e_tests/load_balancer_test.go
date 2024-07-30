@@ -21,9 +21,6 @@ func TestRoundRobinInvalidStrategy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error sending request to load balancer: %s", err)
 	}
-	if err != nil {
-		t.Fatalf("Error making GET request to load balancer: %v", err)
-	}
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("Expected bad request status code, got %d", res.StatusCode)
 	}
