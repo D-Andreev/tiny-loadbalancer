@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -19,7 +20,16 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/slow" {
 			// Simulate work
-			time.Sleep(3 * time.Second)
+			duration := 1000
+			var err error
+			if r.URL.Query().Get("duration") != "" {
+				duration, err = strconv.Atoi(r.URL.Query().Get("duration"))
+				if err != nil {
+					http.Error(w, "Invalid timeout", http.StatusBadRequest)
+					return
+				}
+			}
+			time.Sleep(time.Duration(duration) * time.Millisecond)
 			w.Write([]byte(fmt.Sprintf("Hello from server %s\n", args[0])))
 			return
 		}

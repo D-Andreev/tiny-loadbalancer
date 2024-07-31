@@ -3,6 +3,7 @@ package loadbalancer
 import (
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/tiny-loadbalancer/internal/server"
 )
@@ -422,5 +423,63 @@ func TestLeastConnectionsUnhealthyServer(t *testing.T) {
 			t.Fatalf("Test case %d: Expected server to be %s, got %s", i, tc.expectedHost, server.URL.Host)
 		}
 		server.ActiveConnections++
+	}
+}
+
+func TestGetNextServerLeastResponseTimeNoHealthyServers(t *testing.T) {
+	tlb := &TinyLoadBalancer{
+		Servers: []*server.Server{
+			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
+		},
+		NextServer: 0,
+	}
+	tlb.Servers[0].Healthy = false
+	tlb.Servers[1].Healthy = false
+	tlb.Servers[2].Healthy = false
+
+	_, err := tlb.getNextServerLeastResponseTime("")
+	if err == nil {
+		t.Fatalf("Expected error when no healthy servers are available")
+	}
+}
+
+func TestGetNextServerLeastResponseTime(t *testing.T) {
+	tlb := &TinyLoadBalancer{
+		Servers: []*server.Server{
+			server.NewServer(&url.URL{Host: "localhost:8080"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8081"}, 0),
+			server.NewServer(&url.URL{Host: "localhost:8082"}, 0),
+		},
+		NextServer: 0,
+	}
+
+	testCases := []struct {
+		expectedHost string
+		serverIdx    int
+		duration     time.Duration
+	}{
+		{expectedHost: "localhost:8080", serverIdx: 0, duration: 100 * time.Millisecond},
+		{expectedHost: "localhost:8081", serverIdx: 1, duration: 50 * time.Millisecond},
+		{expectedHost: "localhost:8082", serverIdx: 2, duration: 200 * time.Millisecond},
+		{expectedHost: "localhost:8081", serverIdx: 1, duration: 100 * time.Millisecond},
+		{expectedHost: "localhost:8081", serverIdx: 1, duration: 600 * time.Millisecond},
+		{expectedHost: "localhost:8080", serverIdx: 0, duration: 700 * time.Millisecond},
+		{expectedHost: "localhost:8082", serverIdx: 2, duration: 100 * time.Millisecond},
+		{expectedHost: "localhost:8082", serverIdx: 2, duration: 1500 * time.Millisecond},
+		{expectedHost: "localhost:8081", serverIdx: 1, duration: 1500 * time.Millisecond},
+		{expectedHost: "localhost:8080", serverIdx: 0, duration: 900 * time.Millisecond},
+	}
+
+	for i, tc := range testCases {
+		server, err := tlb.getNextServerLeastResponseTime("")
+		if err != nil {
+			t.Fatalf("Error getting next server: %s", err.Error())
+		}
+		if server.URL.Host != tc.expectedHost {
+			t.Fatalf("Test case %d: Expected server to be %s, got %s", i, tc.expectedHost, server.URL.Host)
+		}
+		tlb.updateServerStats(tlb.Servers[tc.serverIdx], tc.duration)
 	}
 }
