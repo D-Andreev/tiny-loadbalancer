@@ -21,7 +21,7 @@ func main() {
 	configPath := args[0]
 	config := &config.Config{}
 	c, err := config.ReadConfig(configPath)
-	err = config.ValidateConfig()
+	err = config.ValidateConfig(c)
 	if err != nil {
 		log.Fatalf("Invalid config %s", err.Error())
 	}

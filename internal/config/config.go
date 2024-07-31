@@ -69,12 +69,12 @@ func (c *Config) ReadConfig(path string) (*Config, error) {
 	return config, nil
 }
 
-func (c *Config) ValidateConfig() error {
+func (c *Config) ValidateConfig(conf *Config) error {
 	validate := validator.New()
 	validate.RegisterValidation("strategy", c.strategyValidatorFunc)
 	validate.RegisterValidation("healthCheckInterval", c.healthCheckValidatorFunc)
 
-	err := validate.Struct(c)
+	err := validate.Struct(conf)
 	if err != nil {
 		return err
 	}

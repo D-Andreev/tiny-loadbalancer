@@ -107,7 +107,7 @@ func TestValidateServers(t *testing.T) {
 		Port:                123,
 	}
 
-	err := c.ValidateConfig()
+	err := c.ValidateConfig(c)
 	errMessage := "Key: 'Config.Servers[2].Url' Error:Field validation for 'Url' failed on the 'url' tag"
 	if err.Error() != errMessage {
 		t.Fatalf("Expected error for invalid server, got %s", err)
