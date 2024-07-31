@@ -4,6 +4,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -13,6 +14,8 @@ type Server struct {
 	Weight            int
 	CurrentWeight     int
 	ActiveConnections int
+	RequestsCount     int64
+	RequestsDuration  time.Duration
 }
 
 func NewServer(url *url.URL, weight int) *Server {
@@ -22,6 +25,8 @@ func NewServer(url *url.URL, weight int) *Server {
 		Weight:            weight,
 		CurrentWeight:     weight,
 		ActiveConnections: 0,
+		RequestsCount:     0,
+		RequestsDuration:  0,
 	}
 }
 

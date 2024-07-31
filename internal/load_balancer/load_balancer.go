@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"time"
 
 	"github.com/tiny-loadbalancer/internal/constants"
 	"github.com/tiny-loadbalancer/internal/server"
@@ -46,6 +47,10 @@ func (tlb *TinyLoadBalancer) GetRequestHandler() http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			tlb.requestHandler(w, r, tlb.getNextServerLeastConnections)
 		}
+	case constants.LeastResponseTime:
+		return func(w http.ResponseWriter, r *http.Request) {
+			tlb.requestHandler(w, r, tlb.getNextServerLeastResponseTime)
+		}
 
 	default:
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -73,12 +78,18 @@ func (tlb *TinyLoadBalancer) requestHandler(
 			return
 		}
 
+		// Make the request to the server
 		proxy := server.GetReverseProxy()
 		rec := httptest.NewRecorder()
 		server.Mut.Lock()
 		server.ActiveConnections++
 		server.Mut.Unlock()
+		start := time.Now()
 		proxy.ServeHTTP(rec, r)
+		elapsed := time.Since(start)
+
+		// Update server statistics
+		tlb.updateServerStats(server, elapsed)
 
 		// If the response was OK, return the response, otherwise for loop continues and tries with the next server
 		// This ensures fault tolerance and hides single server failures from the client
@@ -104,11 +115,20 @@ func (tlb *TinyLoadBalancer) requestHandler(
 	http.Error(w, "No healthy servers", http.StatusServiceUnavailable)
 }
 
+func (tlb *TinyLoadBalancer) updateServerStats(server *server.Server, elapsed time.Duration) {
+	server.Mut.Lock()
+	server.RequestsCount++
+	server.RequestsDuration += elapsed
+	server.Mut.Unlock()
+}
+
 func (tlb *TinyLoadBalancer) setServerAsDead(server *server.Server) {
 	server.Mut.Lock()
 	server.CurrentWeight = 0
 	server.ActiveConnections = 0
 	server.Healthy = false
+	server.RequestsCount = 0
+	server.RequestsDuration = 0
 	server.Mut.Unlock()
 }
 
@@ -259,4 +279,32 @@ func (tlb *TinyLoadBalancer) getNextServerLeastConnections(_ string) (*server.Se
 	}
 
 	return tlb.Servers[idx], nil
+}
+
+func (tlb *TinyLoadBalancer) getNextServerLeastResponseTime(_ string) (*server.Server, error) {
+	tlb.Mut.Lock()
+	defer tlb.Mut.Unlock()
+
+	leastResponseTime := int64(math.MaxInt64)
+	leastResponseTimeServer := -1
+	for i := 0; i < len(tlb.Servers); i++ {
+		if !tlb.Servers[i].Healthy {
+			continue
+		}
+		if tlb.Servers[i].RequestsCount == 0 {
+			return tlb.Servers[i], nil
+		}
+
+		avgResponseTime := int64(tlb.Servers[i].RequestsDuration) / tlb.Servers[i].RequestsCount
+		if avgResponseTime < leastResponseTime {
+			leastResponseTime = avgResponseTime
+			leastResponseTimeServer = i
+		}
+	}
+
+	if leastResponseTimeServer == -1 {
+		return nil, errors.New("No healthy servers")
+	}
+
+	return tlb.Servers[leastResponseTimeServer], nil
 }

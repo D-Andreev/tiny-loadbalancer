@@ -24,6 +24,7 @@ type TestCase struct {
 	ExpectedBody       string
 	ExpectedStatusCode int
 	SlowResponse       bool
+	Duration           int
 }
 
 func GetFreePort() (port int, err error) {
@@ -173,6 +174,9 @@ func AssertLoadBalancerResponse(t *testing.T, testCases []TestCase, port int) {
 		path := "/"
 		if tc.SlowResponse {
 			path = "/slow"
+			if tc.Duration > 0 {
+				path += "?duration=" + strconv.Itoa(tc.Duration)
+			}
 		}
 		res, err := http.Get("http://localhost:" + strconv.Itoa(port) + path)
 		if err != nil {

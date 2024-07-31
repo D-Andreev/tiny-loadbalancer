@@ -1,5 +1,8 @@
 # tiny-loadbalancer
 
+![build](https://github.com/D-Andreev/tiny-loadbalancer/actions/workflows/build.yml/badge.svg?branch=main)
+![test](https://github.com/D-Andreev/tiny-loadbalancer/actions/workflows/test.yml/badge.svg?branch=main)
+
 TinyLoadbalancer is an HTTP load balancer that supports several strategies for distributing incoming requests across a pool of backend servers. It uses a configuration file to define its behavior and the servers to which it should forward requests.
 
 ## Features
@@ -10,6 +13,7 @@ TinyLoadbalancer is an HTTP load balancer that supports several strategies for d
   - Random
   - IP hashing
   - Least connections
+  - Least response time
 - Health checks for backend servers.
 - Retry requests on failure.
 - Customizable configuration via `config.json`.
@@ -50,6 +54,8 @@ TinyLoadbalancer expects a path to a `config.json` file that defines its configu
   - `"weighted-round-robin"`
   - `"ip-hashing"`
   - `"least-connections"`
+  - `"least-response-time"`
+
   See all [here](https://github.com/D-Andreev/tiny-loadbalancer/blob/main/internal/constants/constants.go#L5)
 - **`healthCheckInterval`**: The interval between health checks, specified as a duration string (e.g., `30s`).
 
