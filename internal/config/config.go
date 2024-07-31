@@ -3,24 +3,57 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"time"
 
 	"github.com/tiny-loadbalancer/internal/constants"
+	"gopkg.in/go-playground/validator.v9"
 )
 
 type Server struct {
-	Url    string `json:"url"`
+	Url    string `json:"url" validate:"required,url"`
 	Weight int    `json:"weight"`
 }
 
 type Config struct {
-	Port                int                `json:"port"`
-	Servers             []Server           `json:"servers"`
-	Strategy            constants.Strategy `json:"strategy"`
-	HealthCheckInterval string             `json:"healthCheckInterval"`
+	Port                int                `json:"port" validate:"gt=0"`
+	Servers             []Server           `json:"servers" validate:"dive,required"`
+	Strategy            constants.Strategy `json:"strategy" validate:"strategy"`
+	HealthCheckInterval string             `json:"healthCheckInterval" validate:"healthCheckInterval"`
 	RetryRequests       bool               `json:"retryRequests"`
 }
 
-func ReadConfig(path string) (*Config, error) {
+func (c *Config) strategyValidatorFunc(fl validator.FieldLevel) bool {
+	strategy := fl.Field().String()
+
+	return c.validateStrategy(strategy)
+}
+
+func (c *Config) validateStrategy(strategy string) bool {
+	for _, s := range constants.Strategies {
+		if strategy == string(s) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (c *Config) healthCheckValidatorFunc(fl validator.FieldLevel) bool {
+	interval := fl.Field().String()
+
+	return c.validateHealthCheckInterval(interval)
+}
+
+func (c *Config) validateHealthCheckInterval(interval string) bool {
+	_, err := time.ParseDuration(interval)
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
+func (c *Config) ReadConfig(path string) (*Config, error) {
 	var config *Config
 
 	bytes, err := os.ReadFile(path)
@@ -34,4 +67,17 @@ func ReadConfig(path string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+func (c *Config) ValidateConfig() error {
+	validate := validator.New()
+	validate.RegisterValidation("strategy", c.strategyValidatorFunc)
+	validate.RegisterValidation("healthCheckInterval", c.healthCheckValidatorFunc)
+
+	err := validate.Struct(c)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

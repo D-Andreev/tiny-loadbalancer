@@ -9,3 +9,11 @@ const (
 	IPHashing          Strategy = "ip-hashing"
 	LeastConnections   Strategy = "least-connections"
 )
+
+var Strategies = []Strategy{
+	RoundRobin,
+	Random,
+	WeightedRoundRobin,
+	IPHashing,
+	LeastConnections,
+}
