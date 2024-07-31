@@ -58,9 +58,27 @@ func StartLoadBalancer(port int, ports []string, config config.Config, weights [
 
 	cmd := exec.Command("go", "run", "../main.go", "../config-test.json")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Pipe load balancer stdout and stderr to the test process
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatalf("Failed to create stdout pipe: %v", err)
+	}
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatalf("Failed to create stderr pipe: %v", err)
+	}
 	if err := cmd.Start(); err != nil {
 		log.Fatalf("Failed to start load balancer: %v", err)
 	}
+	go func() {
+		io.Copy(os.Stdout, stdoutPipe)
+	}()
+
+	go func() {
+		io.Copy(os.Stderr, stderrPipe)
+	}()
+
 	fmt.Printf("Started load balancer on port %d, with PID: %d\n", port, cmd.Process.Pid)
 
 	return cmd

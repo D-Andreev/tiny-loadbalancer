@@ -6,9 +6,11 @@ import (
 	"testing"
 
 	testUtils "github.com/tiny-loadbalancer/e2e_tests/test_utils"
+	"github.com/tiny-loadbalancer/internal/config"
+	"github.com/tiny-loadbalancer/internal/constants"
 )
 
-func TestRoundRobinInvalidStrategy(t *testing.T) {
+func TestInvalidStrategy(t *testing.T) {
 	port, err := testUtils.GetFreePort()
 	if err != nil {
 		t.Fatalf("Error getting free port for load balancer")
@@ -17,13 +19,58 @@ func TestRoundRobinInvalidStrategy(t *testing.T) {
 	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, config, nil)
 	defer teardownSuite(t)
 
-	res, err := http.Get("http://localhost:" + strconv.Itoa(port))
-	if err != nil {
-		t.Fatalf("Error sending request to load balancer: %s", err)
-	}
-	if res.StatusCode != http.StatusBadRequest {
-		t.Fatalf("Expected bad request status code, got %d", res.StatusCode)
+	_, err = http.Get("http://localhost:" + strconv.Itoa(port))
+	if err == nil {
+		t.Fatalf("Expected loadbalancer to return connection refused, but got %s", err)
 	}
 }
 
-// TODO: Add tests for inalid config file, or other config props
+func TestInvalidHealthcheck(t *testing.T) {
+	port, err := testUtils.GetFreePort()
+	if err != nil {
+		t.Fatalf("Error getting free port for load balancer")
+	}
+	c := config.Config{
+		Port:                port,
+		Strategy:            constants.IPHashing,
+		HealthCheckInterval: "invalid-healthcheck",
+		Servers: []config.Server{
+			{
+				Weight: 1,
+				Url:    "http://localhost:1",
+			},
+		},
+	}
+	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, c, nil)
+	defer teardownSuite(t)
+
+	_, err = http.Get("http://localhost:" + strconv.Itoa(port))
+	if err == nil {
+		t.Fatalf("Expected loadbalancer to return connection refused, but got %s", err)
+	}
+}
+
+func TestInvalidServerUrl(t *testing.T) {
+	port, err := testUtils.GetFreePort()
+	if err != nil {
+		t.Fatalf("Error getting free port for load balancer")
+	}
+	c := config.Config{
+		Port:                port,
+		Strategy:            constants.IPHashing,
+		HealthCheckInterval: "5s",
+		Servers: []config.Server{
+			{
+				Weight: 1,
+				Url:    "invalid-url",
+			},
+		},
+	}
+	_, _, port, teardownSuite := testUtils.SetupSuite(t, []string{}, c, nil)
+	defer teardownSuite(t)
+
+	_, err = http.Get("http://localhost:" + strconv.Itoa(port))
+	if err == nil {
+		t.Fatalf("Expected loadbalancer to return connection refused, but got %s", err)
+	}
+}

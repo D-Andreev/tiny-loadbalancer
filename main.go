@@ -19,19 +19,24 @@ func main() {
 		log.Fatal("Please provide a config file", args)
 	}
 	configPath := args[0]
-	config, err := config.ReadConfig(configPath)
+	config := &config.Config{}
+	c, err := config.ReadConfig(configPath)
+	err = config.ValidateConfig(c)
+	if err != nil {
+		log.Fatalf("Invalid config %s", err.Error())
+	}
 
-	healthCheckInterval, err := time.ParseDuration(config.HealthCheckInterval)
+	healthCheckInterval, err := time.ParseDuration(c.HealthCheckInterval)
 	if err != nil {
 		log.Fatalf("Invalid health check interval: %s", err.Error())
 	}
 
-	servers := getServers(config)
+	servers := getServers(c)
 	tlb := &lb.TinyLoadBalancer{
-		Port:          config.Port,
+		Port:          c.Port,
 		Servers:       servers,
-		Strategy:      config.Strategy,
-		RetryRequests: config.RetryRequests,
+		Strategy:      c.Strategy,
+		RetryRequests: c.RetryRequests,
 	}
 
 	// Run health checks for servers in interval
