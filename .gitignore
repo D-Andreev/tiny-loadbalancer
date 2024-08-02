@@ -15,3 +15,4 @@ nohup.out
 
 # logs
 log/*
+e2e_tests/log/*

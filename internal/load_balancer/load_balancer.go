@@ -2,9 +2,9 @@ package loadbalancer
 
 import (
 	"errors"
-	"fmt"
 	"hash/fnv"
 	"io"
+	"log/slog"
 	"math"
 	"math/rand"
 	"net/http"
@@ -64,6 +64,7 @@ func (tlb *TinyLoadBalancer) requestHandler(
 	r *http.Request,
 	getNextServer func(ip string) (*server.Server, error),
 ) {
+	logger := slog.Default()
 	var err error
 	tlb.Mut.Lock()
 	shouldRetryRequests := tlb.RetryRequests
@@ -85,6 +86,19 @@ func (tlb *TinyLoadBalancer) requestHandler(
 		server.ActiveConnections++
 		server.Mut.Unlock()
 		start := time.Now()
+		logger.Info("Sending request to server", slog.Attr{
+			Key:   "Server",
+			Value: slog.StringValue(server.URL.String()),
+		}, slog.Attr{
+			Key:   "Method",
+			Value: slog.StringValue(r.Method),
+		}, slog.Attr{
+			Key:   "Path",
+			Value: slog.StringValue(r.URL.Path),
+		}, slog.Attr{
+			Key:   "RemoteAddr",
+			Value: slog.StringValue(r.RemoteAddr),
+		})
 		proxy.ServeHTTP(rec, r)
 		elapsed := time.Since(start)
 
@@ -94,6 +108,16 @@ func (tlb *TinyLoadBalancer) requestHandler(
 		// If the response was OK, return the response, otherwise for loop continues and tries with the next server
 		// This ensures fault tolerance and hides single server failures from the client
 		if rec.Code < http.StatusInternalServerError {
+			logger.Info("Sending response from server", slog.Attr{
+				Key:   "Server",
+				Value: slog.StringValue(server.URL.String()),
+			}, slog.Attr{
+				Key:   "duration",
+				Value: slog.DurationValue(elapsed),
+			}, slog.Attr{
+				Key:   "status",
+				Value: slog.IntValue(rec.Code),
+			})
 			tlb.returnResponse(rec, w)
 			server.Mut.Lock()
 			server.ActiveConnections--
@@ -108,7 +132,10 @@ func (tlb *TinyLoadBalancer) requestHandler(
 			return
 		}
 
-		fmt.Printf("Server %s returned status %d. Retrying with next server.\n", server.URL.String(), rec.Code)
+		logger.Info("Server", server.URL.String(), "returned status", slog.Attr{
+			Key:   "status",
+			Value: slog.IntValue(rec.Code),
+		})
 		tlb.setServerAsDead(server)
 	}
 
