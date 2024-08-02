@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -95,13 +97,18 @@ func initConfig(configPath string) (*config.Config, error) {
 
 func initLogger() (*os.File, error) {
 	timestamp := time.Now().Unix()
-	logFileName := fmt.Sprintf("log/loadbalancer-%d.log", timestamp)
+	logPath := filepath.Join(".", "log")
+	err := os.MkdirAll(logPath, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	logFileName := fmt.Sprintf(filepath.Join(logPath, "loadbalancer-%d.log"), timestamp)
 	file, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		return nil, err
 	}
-
-	jsonHandler := slog.NewJSONHandler(file, nil)
+	mw := io.MultiWriter(os.Stdout, file)
+	jsonHandler := slog.NewJSONHandler(mw, nil)
 	slog.SetDefault(slog.New(jsonHandler))
 
 	return file, nil

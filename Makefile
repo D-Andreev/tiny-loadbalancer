@@ -3,29 +3,23 @@ all: build
 
 build:
 	@echo "Building..."
+	@go build -o tinyloadbalancer main.go
 
-	@go build -o main main.go
-
-# Run the application
 run:
 	@go run main.go
 
-# Test the application
 test:
 	@echo "Testing..."
-	mkdir -p ./e2e_tests/log
 	@go test ./... -v -count=1
 
-# Test coverage report
 coverage:
 	@echo "Testing with coverage..."
 	@go test ./... -coverprofile=coverage.out
 	@go tool cover -html=coverage.out
 
-# Clean the binary
 clean:
 	@echo "Cleaning..."
-	@rm -f main
+	@rm -f tinyloadbalancer
 
 # Live Reload
 watch:

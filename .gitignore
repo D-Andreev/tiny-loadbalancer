@@ -5,7 +5,7 @@ TODO.md
 .env
 
 # Binary
-main
+tinyloadbalancer
 
 # tmp
 ./tmp/*
