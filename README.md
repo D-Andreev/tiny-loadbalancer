@@ -68,9 +68,10 @@ TinyLoadbalancer expects a path to a `config.json` file that defines its configu
  ## Installation Instructions
 
   1. Download the binary for your operating system from the [releases page](https://github.com/D-Andreev/tiny-loadbalancer/releases).
-  2. Make the binary executable (if necessary):
+    1.1. Start all of the servers from your server pool that you want to use. They also need to be defined in the config file.
+  2. Execute it to start the loadbalancer process passing the path to your config file:
      ```sh
-        ./loadbalancer
+        ./loadbalancer config.json
      ```
 
 ## Run locally
