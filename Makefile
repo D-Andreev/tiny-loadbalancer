@@ -13,6 +13,7 @@ run:
 # Test the application
 test:
 	@echo "Testing..."
+	mkdir -p ./e2e_tests/log
 	@go test ./... -v -count=1
 
 # Test coverage report
