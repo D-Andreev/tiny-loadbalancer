@@ -65,6 +65,13 @@ TinyLoadbalancer expects a path to a `config.json` file that defines its configu
   - **`url`**: The URL of the backend server.
   - **`weight`**: The weight of the server for weighted load balancing strategies.
 
+ ## Installation Instructions
+
+  1. Download the binary for your operating system from the [releases page](https://github.com/D-Andreev/tiny-loadbalancer/releases).
+  2. Make the binary executable (if necessary):
+     ```sh
+        ./loadbalancer
+     ```
 
 ## Run locally
   * You can start your own servers or dummy servers with `go run e2e_tests/server/server.go 8081`. Pass different ports to start multiple servers.
